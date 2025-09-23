@@ -29,11 +29,22 @@ body {
   color: #FFD700; /* yellow */
 }
 
-.school-logo img {
-  height: 40px;
-  max-width: 120px;
-  object-fit: contain;
+.main-nav {
+  display: flex;
+  gap: 2rem;
 }
+
+.main-nav a{
+  color: #FFD700; /* yellow */
+  text-decoration: none;
+  font-weight: 500;
+  transition: color 0.2s;
+}
+
+.main-nav a:hover {
+  color: #fff;
+}
+
 
 .auth-buttons button {
   margin-left: 0.5rem;
@@ -62,6 +73,13 @@ main {
   min-height: 0; /* Prevent overflow issues */
 }
 
+.school-logo img {
+  height: 40px;
+  max-width: 120px;
+  object-fit: contain;
+}
+
+
 /* Footer */
 .footer {
   background: #002244; /* blue */
@@ -86,6 +104,6 @@ main {
   }
 
   .school-logo img {
-    height: 30px;
+    height: 50px;
   }
 }
