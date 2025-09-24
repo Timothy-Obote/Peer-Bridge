@@ -1,7 +1,13 @@
 import "./App.css";
-
+import SignInForm from "./SignInForm";
+import SignUpForm from "./SignUpForm";
+import { useState } from "react";
 export default function App() {
+  const [showSignIn, setShowSignIn] = useState(false);
+  const [showSignUp, setShowSignUp] = useState(false);
+
   return (
+    
     <div className="app-container">
 
       {/* Header */}
@@ -11,25 +17,25 @@ export default function App() {
 
         {/* Middle: Navigation Links */}
         <nav className="main-nav">
-          <a href="#home">Home</a>
+          <a href="#Learn">Learn</a>
           <a href="#How it works">How it Works</a>
-          <a href="#contact">Become a tutor/tutee</a>
+          <a href="#Communities">Communities</a>
+          </nav>
 
-        </nav>
-
-        {/* Right: Auth buttons */}
         <div className="auth-buttons">
-          <button className="sign-in">Sign In</button>
-          <button className="sign-up">Sign Up</button>
+          <button className="sign-in" onClick={() => setShowSignIn(true)}>Sign In</button>
+          <button className="sign-up" onClick={() => setShowSignUp(true)}>Sign Up</button>
         </div>
+        
       </header>
 
       {/* Body */}
-      <main>
-        <div style={{textAlign: "center"}}>Main content goes here</div>
-        <div className="school-logo">
-          <img src="/usiu-logo.png" alt="USIU Africa Logo" />
-        </div>
+      <main className="main-bg">
+       <div className="main-content">
+         <h1>Placement And Career Services.</h1>
+         <p>Struggling in a Unit? Worry no more...<br></br> Get Help from Your Peers and raise your GPA</p>
+       </div>
+       <div className="main-image"></div>
       </main>
 
       {/* Footer */}
@@ -38,6 +44,10 @@ export default function App() {
           © {new Date().getFullYear()} PeerBridge · Connecting Students at USIU Africa
         </p >
       </footer>
+
+      {/* Modals */}
+      {showSignIn && <SignInForm onClose={() => setShowSignIn(false)} />}
+      {showSignUp && <SignUpForm onClose={() => setShowSignUp(false)} />}
     </div>
   );
 }

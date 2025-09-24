@@ -66,17 +66,102 @@ body {
   border: 2px solid #FFD700;
 }
 
-/* Main content should grow to fill space */
-main {
-  flex: 1 0 auto;
-  padding: 2rem 0; /* Optional: add vertical padding for better spacing */
-  min-height: 0; /* Prevent overflow issues */
+/* Add to App.css */
+.modal {
+  position: fixed;
+  top: 0; left: 0; right: 0; bottom: 0;
+  background: rgba(0,0,0,0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
 }
 
-.school-logo img {
-  height: 40px;
-  max-width: 120px;
-  object-fit: contain;
+.auth-form {
+  background: #fff;
+  padding: 2rem;
+  border-radius: 8px;
+  min-width: 300px;
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.sign-in-btn {
+  background: #FFD700;
+  color: #002244;
+  border: none;
+  border-radius: 6px;
+  padding: 0.5rem 1rem;
+  font-weight: bold;
+  cursor: pointer;
+}
+
+.cancel-btn {
+  background: #ccc;
+  color: #002244;
+  border: none;
+  border-radius: 6px;
+  padding: 0.5rem 1rem;
+  font-weight: bold;
+  cursor: pointer;
+  margin-left: 0.5rem;
+}
+/* Main content should grow to fill space */
+
+.main-bg {
+  flex: 1 0 auto;
+  width: 100%;
+  min-height: 400px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: none; /* Remove background image from here */
+  padding: 2rem 0;
+}
+
+/* Add to App.css */
+
+.main-content {
+  background: #002244; /* Deep blue */
+  color: #fff;
+  padding: 2.5rem 2rem;
+  border-radius: 16px;
+  box-shadow: 0 4px 24px rgba(0,0,0,0.08);
+  max-width: 500px;
+  margin-left: 2rem;
+  margin-right: 2rem;
+  z-index: 2;
+  position: relative;
+}
+
+.main-content h1 {
+  color: #FFD700; /* Yellow */
+  font-size: 2.2rem;
+  margin-bottom: 1rem;
+  font-weight: bold;
+  letter-spacing: 1px;
+  text-shadow: 1px 1px 8px rgba(0,0,0,0.08);
+}
+
+.main-content p {
+  color: #fff;
+  font-size: 1.15rem;
+  line-height: 1.6;
+  margin: 0;
+}
+
+.main-image {
+  width: 45%;
+  min-width: 270px;
+  height: 450px;
+  background-image: url('/students-studying-together.jpg');
+  background-size: cover;
+  background-position: center;
+  background-repeat: no-repeat;
+  border-radius: 12px;
+  margin-right: 2rem;
+  box-shadow: 0 4px 16px rgba(0,0,0,0.10);
 }
 
 
@@ -90,7 +175,7 @@ main {
 }
 
 /* Responsive */
-@media (max-width: 768px) {
+@media (max-width: 900px) {
   .header {
     flex-direction: column;
     gap: 0.75rem;
@@ -103,7 +188,22 @@ main {
     gap: 0.5rem;
   }
 
-  .school-logo img {
-    height: 50px;
+  .main-bg {
+    flex-direction: column;
+    align-items: stretch;
+    padding: 1rem 0;
+  }
+  .main-content {
+    padding-left: 1rem;
+    padding-right: 1rem;
+    margin-bottom: 1rem;
+    font-size: 1.2rem;
+  }
+  .main-image {
+    width: 100%;
+    min-width: 0;
+    height: 220px;
+    margin: 0 0 1rem 0;
+    border-radius: 10px;
   }
 }
