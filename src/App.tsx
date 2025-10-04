@@ -2,6 +2,10 @@ import "./App.css";
 import SignInForm from "./SignInForm";
 import SignUpForm from "./SignUpForm";
 import LoggedIn from "./LoggedIn";
+import Tutor from "./tutor";
+import Tutee from "./tutee";
+import AdminDashboard from "./Admin";
+
 import { useState } from "react";
 import { BrowserRouter as Router, Routes, Route } from "react-router-dom";
 
@@ -57,6 +61,9 @@ export default function App() {
       <Routes>
         <Route path="/" element={<Home />} />
         <Route path="/dashboard" element={<LoggedIn />} />
+        <Route path="/tutor" element={<Tutor />} />
+        <Route path="/tutee" element={<Tutee />} />
+        <Route path="/admin" element={<AdminDashboard />} />
       </Routes>
     </Router>
   );

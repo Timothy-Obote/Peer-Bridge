@@ -1,0 +1,168 @@
+.tutee-bg {
+  min-height: 100vh;
+  background: #fff;
+  color: #002244;
+  font-family: 'Segoe UI', Arial, sans-serif;
+}
+
+.tutee-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  background: #002244;
+  color: #FFD600;
+  padding: 20px 40px;
+  font-size: 1.5rem;
+}
+
+.tutee-logo {
+  font-weight: bold;
+  letter-spacing: 2px;
+}
+
+.tutee-content,
+.max-w-xl {
+  margin: 40px auto;
+  max-width: 600px;
+  background: #fff;
+  border-radius: 16px;
+  padding: 32px;
+  box-shadow: 0 4px 24px rgba(0,0,0,0.08);
+  text-align: center;
+}
+
+.text-2xl {
+  font-size: 2rem;
+}
+
+.font-bold {
+  font-weight: bold;
+}
+
+.mb-4 {
+  margin-bottom: 1rem;
+}
+
+.text-center {
+  text-align: center;
+}
+
+.space-y-4 > * + * {
+  margin-top: 1rem;
+}
+
+.block {
+  display: block;
+}
+
+.font-medium {
+  font-weight: 500;
+}
+
+.mb-1 {
+  margin-bottom: 0.25rem;
+}
+
+.w-full {
+  width: 100%;
+}
+
+.border {
+  border: 1px solid #cbd5e1;
+}
+
+.rounded-lg {
+  border-radius: 0.5rem;
+}
+
+.p-2 {
+  padding: 0.5rem;
+}
+
+.p-6 {
+  padding: 1.5rem;
+}
+
+.bg-white {
+  background: #fff;
+}
+
+.shadow-md {
+  box-shadow: 0 4px 24px rgba(0,0,0,0.08);
+}
+
+.mt-10 {
+  margin-top: 2.5rem;
+}
+
+.space-y-2 > * + * {
+  margin-top: 0.5rem;
+}
+
+.flex {
+  display: flex;
+}
+
+.items-center {
+  align-items: center;
+}
+
+.space-x-2 > * + * {
+  margin-left: 0.5rem;
+}
+
+.bg-yellow-500 {
+  background: #FFD600;
+}
+
+.text-blue-900 {
+  color: #002244;
+}
+
+.px-4 {
+  padding-left: 1rem;
+  padding-right: 1rem;
+}
+
+.py-2 {
+  padding-top: 0.5rem;
+  padding-bottom: 0.5rem;
+}
+
+.rounded-lg {
+  border-radius: 0.5rem;
+}
+
+.hover\:bg-yellow-400:hover {
+  background: #ffe066;
+}
+
+/* Responsive styles */
+@media (max-width: 700px) {
+  .tutee-content,
+  .max-w-xl {
+    max-width: 95vw;
+    padding: 16px;
+  }
+  .tutee-header {
+    padding: 14px 10px;
+    font-size: 1.1rem;
+  }
+}
+
+@media (max-width: 500px) {
+  .tutee-header {
+    flex-direction: column;
+    align-items: flex-start;
+    padding: 10px 5px;
+    font-size: 1rem;
+  }
+  .tutee-logo {
+    margin-bottom: 8px;
+  }
+  .tutee-content,
+  .max-w-xl {
+    padding: 8px;
+    border-radius: 8px;
+  }
+}

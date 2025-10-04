@@ -3,6 +3,189 @@
   background: #fff;
   color: #002244;
   font-family: 'Segoe UI', Arial, sans-serif;
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+}
+
+.dashboard-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  background: #002244;
+  color: #FFD600;
+  padding: 20px 40px;
+  font-size: 1.5rem;
+}
+
+.dashboard-logo {
+  font-weight: bold;
+  letter-spacing: 2px;
+}
+
+.signout-btn {
+  background: #FFD600;
+  color: #002244;
+  border: none;
+  padding: 10px 24px;
+  border-radius: 6px;
+  font-weight: bold;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+.signout-btn:hover {
+  background: #ffe066;
+}
+
+.dashboard-content {
+  margin: 40px auto;
+  max-width: 400px;      
+  background: #fff;
+  border-radius: 16px;
+  padding: 32px;
+  box-shadow: 0 4px 24px rgba(0,0,0,0.08);
+  text-align: center;
+  flex: 1 0 auto;
+}
+.username {
+  color: #FFD600;
+  background: transparent;
+  padding: 2px 8px;
+  border-radius: 6px;
+}
+
+@media (max-width: 600px) {
+  .role-selection {
+    flex-direction: column;
+    gap: 16px;
+    margin-top: 20px;
+    align-items: center;
+  }
+  .role-card {
+    width: 90vw;
+    max-width: 300px;
+    height: 120px;
+    font-size: 1rem;
+  }
+}
+
+
+/* Tutor card */
+.role-card.tutor {
+  background: #FFD600;
+  color: #002244;
+  border-color: #FFD600;
+}
+.role-card.tutor h3 {
+  color: #002244;
+}
+
+/* Tutee card */
+.role-card.tutee {
+  background: #002244;
+  color: #FFD600;
+  border-color: #002244;
+}
+.role-card.tutee h3 {
+  color: #FFD600;
+}
+
+/* Admin card */
+.role-card.admin {
+  background: #FFD600;
+  color: #002244;
+  border-color: #002244;
+  box-shadow: 0 2px 8px rgba(0,34,68,0.08);
+}
+.role-card.admin h3 {
+  color: #002244;
+}
+
+/* Hover effects for all role cards */
+.role-card:hover {
+  box-shadow: 0 4px 16px rgba(0,0,0,0.10);
+  transform: translateY(-2px) scale(1.03);
+}
+
+.role-card.tutor:hover {
+  background: #ffe066;
+}
+.role-card.tutee:hover {
+  background: #003366;
+  color: #FFD600;
+}
+.role-card.admin:hover {
+  background: #ffe066;
+  color: #002244;
+}
+
+/* Responsive styles */
+@media (max-width: 900px) {
+  .dashboard-content {
+    max-width: 90vw;
+    padding: 20px;
+  }
+  .dashboard-header {
+    padding: 16px 20px;
+    font-size: 1.2rem;
+  }
+  .role-selection {
+    gap: 16px;
+  }
+  .role-card {
+    padding: 24px 0;
+    font-size: 1.1rem;
+  }
+}
+
+/* Footer */
+.footer {
+  background: #002244;
+  color: #FFD600;
+  text-align: center;
+  padding: 1rem;
+  flex-shrink: 0;
+  font-size: 1rem;
+  letter-spacing: 1px;
+}
+
+@media (max-width: 600px) {
+  .dashboard-header {
+    flex-direction: column;
+    align-items: flex-start;
+    padding: 12px 10px;
+    font-size: 1rem;
+  }
+  .dashboard-logo {
+    margin-bottom: 8px;
+  }
+  .dashboard-content {
+    max-width: 100vw;
+    padding: 12px;
+    border-radius: 8px;
+  }
+  .role-selection {
+    flex-direction: column;
+    gap: 16px;
+    margin-top: 20px;
+  }
+  .role-card {
+    padding: 18px 0;
+    font-size: 1rem;
+  }
+  .footer {
+    font-size: 0.9rem;
+    padding: 0.7rem;
+  }
+}
+.dashboard-bg {
+  min-height: 100vh;
+  background: #fff;
+  color: #002244;
+  font-family: 'Segoe UI', Arial, sans-serif;
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
 }
 
 .dashboard-header {
@@ -42,6 +225,7 @@
   padding: 32px;
   box-shadow: 0 4px 24px rgba(0,0,0,0.08);
   text-align: center;
+  flex: 1 0 auto;
 }
 
 .username {
@@ -70,6 +254,7 @@
   border: 3px solid #002244;
 }
 
+/* Tutor card */
 .role-card.tutor {
   background: #FFD600;
   color: #002244;
@@ -79,6 +264,7 @@
   color: #002244;
 }
 
+/* Tutee card */
 .role-card.tutee {
   background: #002244;
   color: #FFD600;
@@ -86,6 +272,35 @@
 }
 .role-card.tutee h3 {
   color: #FFD600;
+}
+
+/* Admin card */
+.role-card.admin {
+  background: #FFD600;
+  color: #002244;
+  border-color: #002244;
+  box-shadow: 0 2px 8px rgba(0,34,68,0.08);
+}
+.role-card.admin h3 {
+  color: #002244;
+}
+
+/* Hover effects for all role cards */
+.role-card:hover {
+  box-shadow: 0 4px 16px rgba(0,0,0,0.10);
+  transform: translateY(-2px) scale(1.03);
+}
+
+.role-card.tutor:hover {
+  background: #ffe066;
+}
+.role-card.tutee:hover {
+  background: #003366;
+  color: #FFD600;
+}
+.role-card.admin:hover {
+  background: #ffe066;
+  color: #002244;
 }
 
 /* Responsive styles */
@@ -105,6 +320,17 @@
     padding: 24px 0;
     font-size: 1.1rem;
   }
+}
+
+/* Footer */
+.footer {
+  background: #002244;
+  color: #FFD600;
+  text-align: center;
+  padding: 1rem;
+  flex-shrink: 0;
+  font-size: 1rem;
+  letter-spacing: 1px;
 }
 
 @media (max-width: 600px) {
@@ -130,5 +356,9 @@
   .role-card {
     padding: 18px 0;
     font-size: 1rem;
+  }
+  .footer {
+    font-size: 0.9rem;
+    padding: 0.7rem;
   }
 }

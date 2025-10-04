@@ -1,5 +1,5 @@
 import { useLocation, useNavigate } from "react-router-dom";
-import "./LoggedIn.css"; 
+import "./LoggedIn.css";
 
 function capitalizeFirst(str: string) {
   if (!str) return "";
@@ -38,18 +38,29 @@ export default function LoggedIn() {
         <div className="role-selection">
           <div
             className="role-card tutor"
-            onClick={() => alert("You selected Tutor")}
+            onClick={() => navigate("/tutor")}
           >
             <h3>Tutor</h3>
           </div>
           <div
             className="role-card tutee"
-            onClick={() => alert("You selected Tutee")}
+            onClick={() => navigate("/tutee")}
           >
             <h3>Tutee</h3>
           </div>
+          <div
+            className="role-card admin"
+            onClick={() => navigate("/admin")}
+          >
+            <h3>Admin</h3>
+          </div>
         </div>
       </div>
+      <footer className="footer">
+        <p>
+          © {new Date().getFullYear()} PeerBridge · Connecting Students at USIU Africa
+        </p>
+      </footer>
     </div>
   );
 }
