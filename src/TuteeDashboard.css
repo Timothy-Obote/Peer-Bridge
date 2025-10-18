@@ -1,0 +1,63 @@
+.tutee-dashboard {
+  min-height: 100vh;
+  background-color: #ffffff;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  font-family: "Poppins", sans-serif;
+}
+
+.tutee-header {
+  width: 100%;
+  background-color: #002244;
+  color: white;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 1.2rem 2rem;
+  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.15);
+}
+
+.logout-btn {
+  background-color: #FFD600;
+  color: #002244;
+  border: none;
+  padding: 0.6rem 1.2rem;
+  border-radius: 6px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: 0.3s ease;
+}
+
+.logout-btn:hover {
+  background-color: #ffe347;
+}
+
+.tutee-content {
+  margin-top: 3rem;
+  text-align: center;
+  color: #002244;
+  max-width: 800px;
+}
+
+.tutee-actions {
+  margin-top: 2rem;
+  display: flex;
+  justify-content: center;
+  gap: 1.5rem;
+}
+
+.action-btn {
+  background-color: #FFD600;
+  color: #002244;
+  padding: 0.8rem 1.5rem;
+  border: none;
+  border-radius: 8px;
+  font-weight: 500;
+  transition: 0.3s ease;
+}
+
+.action-btn:hover {
+  background-color: #002244;
+  color: #ffffff;
+}

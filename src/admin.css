@@ -1,0 +1,95 @@
+/* Color palette */
+:root {
+  --blue: #002244;
+  --yellow:  #FFD600;
+  --white: #ffffff;
+}
+
+/* General layout */
+.admin-dashboard {
+  background-color: var(--white);
+  color: #333;
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  font-family: "Poppins", sans-serif;
+}
+
+/* Header */
+.admin-header {
+  background-color: var(#002244);
+  color: var(--white);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 1rem 2rem;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.2);
+}
+
+.admin-header h1 {
+  font-size: 1.8rem;
+  font-weight: 600;
+}
+
+.admin-header-right {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+
+.logout-btn {
+  background-color: var(#FFD600);
+  color: var(#002244);
+  border: none;
+  padding: 0.4rem 1rem;
+  border-radius: 5px;
+  cursor: pointer;
+  font-weight: 600;
+  transition: all 0.3s ease;
+}
+
+.logout-btn:hover {
+  background-color: #FFD600;
+}
+
+/* Main content */
+.admin-main {
+  flex-grow: 1;
+  padding: 2rem;
+}
+
+.admin-main h2 {
+  color: var(--blue);
+  margin-bottom: 1.5rem;
+  font-size: 1.5rem;
+}
+
+.admin-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 1.5rem;
+}
+
+.admin-card {
+  background-color: var(#FFD600);
+  color: var(--blue);
+  padding: 1.5rem;
+  border-radius: 10px;
+  box-shadow: 0 2px 5px rgba(0, 0, 0, 0.15);
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.admin-card:hover {
+  transform: translateY(-5px);
+  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.25);
+}
+
+/* Footer */
+.admin-footer {
+  text-align: center;
+  padding: 1rem;
+  background-color: var(#002244);
+  color: var(--white);
+  font-size: 0.9rem;
+  margin-top: auto;
+}

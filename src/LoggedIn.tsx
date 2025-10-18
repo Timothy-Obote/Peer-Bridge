@@ -1,4 +1,6 @@
 import { useLocation, useNavigate } from "react-router-dom";
+import { useEffect } from "react";
+import { io } from "socket.io-client";
 import "./LoggedIn.css";
 
 function capitalizeFirst(str: string) {
@@ -12,54 +14,91 @@ export default function LoggedIn() {
 
   // Safely extract email string from state
   let userEmail = "User";
+  let userId = null;
+  let userRole = "";
+
   if (location.state?.user) {
-    if (typeof location.state.user === "string") {
-      userEmail = location.state.user;
-    } else if (typeof location.state.user === "object" && location.state.user.email) {
-      userEmail = location.state.user.email;
+    const user = location.state.user;
+    if (typeof user === "string") {
+      userEmail = user;
+    } else if (typeof user === "object") {
+      userEmail = user.email || "User";
+      userId = user.id || null;
+      userRole = user.role || "";
     }
   }
+
   const userName = capitalizeFirst(userEmail.split("@")[0]);
+
+  //  Socket.io connection setup
+  useEffect(() => {
+    if (!userEmail) return;
+
+    const socket = io("http://localhost:5000");
+
+    socket.on("connect", () => {
+      console.log("Connected to socket server");
+      socket.emit("registerUser", userEmail);
+    });
+
+    socket.on("matchFound", (data) => {
+      console.log("Match found:", data.match);
+      alert(` Match found!\n\n${data.match.name} (${data.match.role}) for unit: ${data.match.unit}`);
+    });
+
+    return () => {
+      socket.disconnect();
+    };
+  }, [userEmail]);
 
   const handleSignOut = () => {
     localStorage.removeItem("user");
     navigate("/");
   };
 
+  const handleViewMatches = () => {
+    if (!userEmail || !userId) {
+      alert("User info missing. Please log in again.");
+      return;
+    }
+    navigate("/matches", { state: { user: { id: userId, email: userEmail, role: userRole } } });
+  };
+
   return (
     <div className="dashboard-bg">
       <header className="dashboard-header">
         <div className="dashboard-logo">PeerBridge</div>
-        <button className="signout-btn" onClick={handleSignOut}>Sign Out</button>
+
+        {/*  Buttons aligned to top-right */}
+        <div className="header-buttons">
+          <button className="matches-btn" onClick={handleViewMatches}>
+            View Matches
+          </button>
+          <button className="signout-btn" onClick={handleSignOut}>
+            Sign Out
+          </button>
+        </div>
       </header>
+
       <div className="dashboard-content">
-        <h1>Welcome <span className="username">{userName}</span></h1>
+        <h1>
+          Welcome <span className="username">{userName}</span>
+        </h1>
         <h2>Choose your role</h2>
+
         <div className="role-selection">
-          <div
-            className="role-card tutor"
-            onClick={() => navigate("/tutor")}
-          >
+          <div className="role-card tutor" onClick={() => navigate("/tutor")}>
             <h3>Tutor</h3>
           </div>
-          <div
-            className="role-card tutee"
-            onClick={() => navigate("/tutee")}
-          >
+          <div className="role-card tutee" onClick={() => navigate("/tutee")}>
             <h3>Tutee</h3>
           </div>
-          <div
-            className="role-card admin"
-            onClick={() => navigate("/admin")}
-          >
-            <h3>Admin</h3>
-          </div>
+          
         </div>
       </div>
+
       <footer className="footer">
-        <p>
-          © {new Date().getFullYear()} PeerBridge · Connecting Students at USIU Africa
-        </p>
+        <p>© {new Date().getFullYear()} PeerBridge · Connecting Students at USIU Africa</p>
       </footer>
     </div>
   );

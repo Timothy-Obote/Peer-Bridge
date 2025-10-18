@@ -17,6 +17,25 @@
   padding: 20px 40px;
   font-size: 1.5rem;
 }
+.header-buttons {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+}
+
+.matches-btn {
+  background-color: white;
+  color: black;
+  border: none;
+  padding: 8px 14px;
+  border-radius: 6px;
+  cursor: pointer;
+  font-weight: 500;
+}
+
+.matches-btn:hover {
+  background-color: #FFD600;
+}
 
 .dashboard-logo {
   font-weight: bold;

@@ -15,6 +15,88 @@
   font-size: 1.5rem;
 }
 
+.header-buttons {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+}
+
+.matches-btn {
+  background-color: white;
+  color: black;
+  border: none;
+  padding: 8px 14px;
+  border-radius: 6px;
+  cursor: pointer;
+  font-weight: 500;
+}
+
+.matches-btn:hover {
+  background-color: #FFD600;
+}
+
+
+/* --- Recommendations Section --- */
+.recommendations-container {
+  margin-top: 2rem;
+  background-color: #ebf5ff;
+  padding: 1rem;
+  border-radius: 0.5rem;
+}
+
+.recommendations-title {
+  font-size: 1.125rem;
+  font-weight: 600;
+  color: #1d4ed8;
+  margin-bottom: 0.75rem;
+}
+
+.recommendation-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  border: 1px solid #e5e7eb;
+  border-radius: 0.5rem;
+  padding: 0.75rem;
+  background-color: white;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+  transition: background-color 0.2s ease;
+}
+
+.recommendation-item:hover {
+  background-color: #f9fafb;
+}
+
+.recommendation-info {
+  display: flex;
+  flex-direction: column;
+}
+
+.recommendation-info strong {
+  font-weight: 600;
+}
+
+.recommendation-info span {
+  font-size: 0.875rem;
+  color: #6b7280;
+}
+
+/* --- Match Request Button --- */
+.send-match-btn {
+  background-color: #facc15; /* yellow */
+  color: black;
+  padding: 0.5rem 1rem;
+  border: none;
+  border-radius: 0.375rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background-color 0.3s ease;
+}
+
+.send-match-btn:hover {
+  background-color: #eab308; /* darker yellow */
+}
+
 .tutor-logo {
   font-weight: bold;
   letter-spacing: 2px;

@@ -33,19 +33,32 @@ export default function SignInForm({ onClose }: { onClose: () => void }) {
       }
 
       if (!resp.ok) {
-        // Show server-provided message when possible
         const msg = data?.message || `Server returned ${resp.status}`;
         setError(msg);
         return;
       }
 
-      // Success: store minimal user info and redirect
-      localStorage.setItem("user", JSON.stringify(data.user || { email }));
+      //  Role-based redirect logic
+      const user = data.user || { email, role: "user"};
+      localStorage.setItem("user", JSON.stringify(user));
       onClose();
-      navigate("/dashboard", { state: { user: data.user || { email } } });
+       // role based redirect logic with elif statements 
+      if (user.role === "admin") {
+        console.log("Redirecting admin to dashboard...");
+        navigate("/admin-dashboard", { state: { user } });
+      }else if (user.role === "tutor") {
+        console.log("Redirecting tutor...");
+        navigate("/tutor-dashboard", { state: { user } });
+      } else if (user.role === "tutee") {
+        console.log("Redirecting tutee...");
+        navigate("/tutee-dashboard", { state: { user } });
+      } else {
+        console.log("Redirecting normal user to dashboard...");
+        navigate("/dashboard", { state: { user } });
+      }
+
     } catch (err: any) {
       console.error("Sign-in failed:", err);
-      // Show the actual error message so it's actionable
       setError(err?.message || "Network or server error");
     }
   };

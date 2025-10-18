@@ -1,10 +1,17 @@
 import React, { useState } from "react";
+import { useNavigate } from "react-router-dom";
 import "./tutee.css";
 
 type TermOption = "FS" | "SS" | "US";
 
 interface UnitMap {
   [key: string]: string[];
+}
+
+interface Tutor {
+  name: string;
+  email: string;
+  units: string;
 }
 
 const departmentUnits: UnitMap = {
@@ -35,125 +42,182 @@ const Tutee: React.FC = () => {
   const [idNumber, setIdNumber] = useState("");
   const [term, setTerm] = useState<TermOption>("FS");
   const [department, setDepartment] = useState("");
-  const [selectedUnit, setSelectedUnit] = useState<string>("");
+  const [selectedUnit, setSelectedUnit] = useState("");
+  const [status, setStatus] = useState("");
+  const [recommendations, setRecommendations] = useState<Tutor[]>([]);
+  const navigate = useNavigate();
 
-  const handleSubmit = (e: React.FormEvent) => {
+  // Fetch available tutors for this tutee
+  const fetchRecommendations = async (dept: string, unit: string) => {
+    if (!dept || !unit) return;
+
+    try {
+      const res = await fetch(
+        `http://localhost:5000/recommend/tutee/${encodeURIComponent(dept)}/${encodeURIComponent(unit)}`
+      );
+
+      if (!res.ok) throw new Error("Failed to fetch tutor recommendations");
+
+      const data = await res.json();
+      setRecommendations(data.availableTutors || []);
+    } catch (error) {
+      console.error("Recommendation fetch error:", error);
+    }
+  };
+
+  // Handle Tutee Registration Submit
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     const tuteeData = { email, name, idNumber, term, department, selectedUnit };
-    console.log("Tutee Form Data:", tuteeData);
-    alert("Tutee form submitted! Check console for details.");
+
+    try {
+      setStatus("Submitting...");
+
+      const res = await fetch("http://localhost:5000/tutees", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(tuteeData),
+      });
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        setStatus(data.message || "Error submitting tutee data.");
+        return;
+      }
+
+      setStatus("Tutee registered successfully!");
+      setEmail("");
+      setName("");
+      setIdNumber("");
+      setTerm("FS");
+      setDepartment("");
+      setSelectedUnit("");
+
+      // Redirect to Tutee Dashboard
+      setTimeout(() => {
+        navigate("/tutee-dashboard", {
+          state: { user: { name, email, role: "tutee" } },
+        });
+      }, 1000);
+
+      // Fetch tutor recommendations
+      await fetchRecommendations(department, selectedUnit);
+    } catch (error: unknown) {
+      console.error("Error submitting tutee form:", error);
+      setStatus("Server error — check your backend connection.");
+    }
   };
 
   return (
-    <div className="tutee-bg">
-      <div className="max-w-xl mx-auto mt-10 p-6 bg-white shadow-md rounded-2xl tutee-content">
-        <h2 className="text-2xl font-bold mb-4 text-center">Tutee Registration</h2>
+    <div className="tutee-container">
+      <h2 className="tutee-title">Tutee Registration</h2>
 
-        <form onSubmit={handleSubmit} className="space-y-4">
-          {/* Email */}
-          <div>
-            <label className="block font-medium mb-1">Email Address</label>
-            <input
-              type="email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              className="w-full border rounded-lg p-2"
-              required
-            />
-          </div>
+      <form onSubmit={handleSubmit} className="tutee-form">
+        <div>
+          <label>Email Address</label>
+          <input
+            type="email"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            required
+          />
+        </div>
 
-          {/* Name */}
-          <div>
-            <label className="block font-medium mb-1">Full Name</label>
-            <input
-              type="text"
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              className="w-full border rounded-lg p-2"
-              required
-            />
-          </div>
+        <div>
+          <label>Full Name</label>
+          <input
+            type="text"
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            required
+          />
+        </div>
 
-          {/* ID Number */}
-          <div>
-            <label className="block font-medium mb-1">ID Number</label>
-            <input
-              type="text"
-              value={idNumber}
-              onChange={(e) => setIdNumber(e.target.value)}
-              className="w-full border rounded-lg p-2"
-              required
-            />
-          </div>
+        <div>
+          <label>ID Number</label>
+          <input
+            type="text"
+            value={idNumber}
+            onChange={(e) => setIdNumber(e.target.value)}
+            required
+          />
+        </div>
 
-          {/* Term */}
+        <div>
+          <label>Term</label>
+          <select
+            value={term}
+            onChange={(e) => setTerm(e.target.value as TermOption)}
+          >
+            <option value="FS">Fall Semester (FS)</option>
+            <option value="SS">Summer Semester (SS)</option>
+            <option value="US">Spring Semester (US)</option>
+          </select>
+        </div>
+
+        <div>
+          <label>Department</label>
+          <select
+            value={department}
+            onChange={(e) => {
+              setDepartment(e.target.value);
+              setSelectedUnit("");
+            }}
+            required
+          >
+            <option value="">-- Select Department --</option>
+            {Object.keys(departmentUnits).map((dept) => (
+              <option key={dept} value={dept}>
+                {dept}
+              </option>
+            ))}
+          </select>
+        </div>
+
+        {department && (
           <div>
-            <label className="block font-medium mb-1">Term</label>
+            <label>Select Unit</label>
             <select
-              value={term}
-              onChange={(e) => setTerm(e.target.value as TermOption)}
-              className="w-full border rounded-lg p-2"
-            >
-              <option value="FS">Fall Semester (FS)</option>
-              <option value="SS">Summer Semester (SS)</option>
-              <option value="US">Spring Semester (US)</option>
-            </select>
-          </div>
-
-          {/* Department */}
-          <div>
-            <label className="block font-medium mb-1">Department</label>
-            <select
-              value={department}
-              onChange={(e) => {
-                setDepartment(e.target.value);
-                setSelectedUnit(""); // reset unit when department changes
-              }}
-              className="w-full border rounded-lg p-2"
+              value={selectedUnit}
+              onChange={(e) => setSelectedUnit(e.target.value)}
               required
             >
-              <option value="">-- Select Department --</option>
-              {Object.keys(departmentUnits).map((dept) => (
-                <option key={dept} value={dept}>
-                  {dept}
+              <option value="">-- Select Unit --</option>
+              {departmentUnits[department].map((unit) => (
+                <option key={unit} value={unit}>
+                  {unit}
                 </option>
               ))}
             </select>
           </div>
+        )}
 
-          {/* Units */}
-          {department && (
-            <div>
-              <label className="block font-medium mb-1">
-                Unit for {department}
-              </label>
-              <select
-                value={selectedUnit}
-                onChange={(e) => setSelectedUnit(e.target.value)}
-                className="w-full border rounded-lg p-2"
-                required
-              >
-                <option value="">-- Select Unit --</option>
-                {departmentUnits[department].map((unit) => (
-                  <option key={unit} value={unit}>
-                    {unit}
-                  </option>
-                ))}
-              </select>
-            </div>
-          )}
+        <div className="tutee-btn-container">
+          <button type="submit" className="submit-btn">
+            Submit
+          </button>
+        </div>
 
-          {/* Submit */}
-          <div className="text-center">
-            <button
-              type="submit"
-              className="bg-yellow-500 text-blue-900 px-4 py-2 rounded-lg hover:bg-yellow-400"
-            >
-              Submit
-            </button>
-          </div>
-        </form>
-      </div>
+        {status && <p className="status-message">{status}</p>}
+      </form>
+
+      {recommendations.length > 0 && (
+        <div className="recommendations-container">
+          <h3 className="recommendations-title">
+            Available Tutors Matching Your Unit
+          </h3>
+          <ul>
+            {recommendations.map((tutor, index) => (
+              <li key={index} className="recommendation-item">
+                <strong>{tutor.name}</strong> — {tutor.email}
+                <br />
+                <span>Units: {tutor.units}</span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
     </div>
   );
 };

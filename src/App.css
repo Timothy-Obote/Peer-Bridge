@@ -66,6 +66,22 @@ body {
   border: 2px solid #FFD700;
 }
 
+.success {
+  color: green;
+  font-weight: bold;
+  margin-top: 10px;
+}
+.success {
+  color: green;
+  font-weight: bold;
+  margin-top: 10px;
+}
+.error {
+  color: red;
+  font-weight: bold;
+  margin-top: 10px;
+}     
+
 /* Add to App.css */
 .modal {
   position: fixed;
@@ -163,6 +179,111 @@ body {
   margin-right: 2rem;
   box-shadow: 0 4px 16px rgba(0,0,0,0.10);
 }
+
+/* Hover Preview Box (beneath header on nav hover) */
+.hover-box {
+  position: absolute;
+  top: 70px; /* adjust to match your header height */
+  left: 50%;
+  transform: translateX(-50%);
+  width: 380px;
+  background-color: #f0f4ff;
+  border: 1px solid #bfd6ff;
+  border-radius: 12px;
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.15);
+  padding: 1rem 1.2rem;
+  text-align: center;
+  color: #002244;
+  z-index: 20;
+}
+
+.hover-box h3 {
+  color: #003366;
+  font-weight: bold;
+  margin-bottom: 0.5rem;
+  font-size: 1.1rem;
+}
+
+.hover-box p {
+  font-size: 0.95rem;
+  line-height: 1.4;
+  margin: 0;
+}
+
+/* Smooth hover link effect */
+.main-nav a {
+  color: #FFD700;
+  text-decoration: none;
+  font-weight: 500;
+  position: relative;
+  transition: color 0.2s ease;
+}
+
+.main-nav a:hover {
+  color: #ffffff;
+}
+
+.main-nav a::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  bottom: -6px;
+  width: 0%;
+  height: 2px;
+  background-color: #FFD700;
+  transition: width 0.3s ease;
+}
+
+.main-nav a:hover::after {
+  width: 100%;
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+.hover-box {
+  position: absolute;
+  top: 70px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 360px;
+  background: #ebf4ff;
+  border: 1px solid #c3dafe;
+  border-radius: 12px;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
+  padding: 1rem;
+  color: #1e3a8a;
+  text-align: center;
+  z-index: 20;
+}
+
+.section {
+  padding: 100px 20px;
+  text-align: center;
+  background-color: #f9fafc;
+  border-top: 1px solid #e0e0e0;
+}
+
+.section:nth-child(even) {
+  background-color: #eef2ff;
+}
+
+.section h2 {
+  color: #1e3a8a;
+  font-size: 2rem;
+  margin-bottom: 10px;
+}
+
+.section p {
+  max-width: 700px;
+  margin: 0 auto;
+  color: #334155;
+  font-size: 1.1rem;
+  line-height: 1.6;
+}
+
+
 
 
 /* Footer */
