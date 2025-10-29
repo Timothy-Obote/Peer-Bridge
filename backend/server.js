@@ -1,4 +1,3 @@
-// server.js
 const express = require("express");
 const cors = require("cors");
 const mysql = require("mysql2");
@@ -26,16 +25,16 @@ const pool = mysql
   })
   .promise();
 
-// Track connected users
+// Active socket tracking
 const activeSockets = new Map();
 
 io.on("connection", (socket) => {
-  console.log("socket connected:", socket.id);
+  console.log("Socket connected:", socket.id);
 
   socket.on("registerUser", (email) => {
     if (email) {
       activeSockets.set(email, socket.id);
-      console.log("Registered socket for", email, socket.id);
+      console.log("Registered socket for", email);
     }
   });
 
@@ -43,11 +42,11 @@ io.on("connection", (socket) => {
     for (const [email, id] of activeSockets.entries()) {
       if (id === socket.id) activeSockets.delete(email);
     }
-    console.log("socket disconnected:", socket.id);
+    console.log("Socket disconnected:", socket.id);
   });
 });
 
-// Ensure essential tables exist
+// Ensure tables exist
 async function ensureTables() {
   await pool.execute(`
     CREATE TABLE IF NOT EXISTS matches (
@@ -71,6 +70,17 @@ async function ensureTables() {
       created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     )
   `);
+
+  await pool.execute(`
+    CREATE TABLE IF NOT EXISTS users (
+      id INT AUTO_INCREMENT PRIMARY KEY,
+      full_name VARCHAR(255),
+      email VARCHAR(255) UNIQUE NOT NULL,
+      password VARCHAR(255) NOT NULL,
+      role ENUM('user','tutor','tutee','admin') DEFAULT 'user',
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
 }
 ensureTables().catch(console.error);
 
@@ -79,20 +89,25 @@ app.get("/health", (req, res) => {
   res.json({ status: "ok", time: new Date().toISOString() });
 });
 
-// Signup
+// Signup route — registers user with default 'user' role
 app.post("/signup", async (req, res) => {
   try {
-    const { email, password } = req.body;
+    const { full_name, email, password } = req.body;
     if (!email || !password)
-      return res.status(400).json({ message: "Email and password are required" });
+      return res
+        .status(400)
+        .json({ message: "Email and password are required" });
 
     const hashed = await bcrypt.hash(password, 10);
     const [result] = await pool.execute(
-      "INSERT INTO users (email, password) VALUES (?, ?)",
-      [email, hashed]
+      "INSERT INTO users (full_name, email, password, role) VALUES (?, ?, ?, 'user')",
+      [full_name || "", email, hashed]
     );
 
-    res.status(201).json({ message: "User created", user: { id: result.insertId, email } });
+    res.status(201).json({
+      message: "User created successfully",
+      user: { id: result.insertId, full_name, email, role: "user" },
+    });
   } catch (err) {
     console.error("/signup error:", err);
     if (err.code === "ER_DUP_ENTRY")
@@ -101,63 +116,119 @@ app.post("/signup", async (req, res) => {
   }
 });
 
-// Signin
+// Signin — authenticates and redirects users by role
 app.post("/signin", async (req, res) => {
   try {
     const { email, password } = req.body;
     if (!email || !password)
-      return res.status(400).json({ message: "Email and password are required" });
+      return res
+        .status(400)
+        .json({ message: "Email and password are required" });
 
-    // Check for admin login
+    // Admin hardcoded login
     if (email === "admin@usiu.ac.ke" && password === "PACS1234") {
       return res.json({
         message: "Admin login successful",
-        user: {
-          id: "admin",
-          email,
-          role: "admin",
-        },
+        user: { id: 0, full_name: "Administrator", email, role: "admin" },
       });
     }
 
-    // Normal user login
-    const [rows] = await pool.execute(
-      "SELECT id, email, password FROM users WHERE email = ?",
+    const [users] = await pool.execute(
+      "SELECT id, full_name, email, password, role FROM users WHERE email = ?",
       [email]
     );
 
-    if (rows.length === 0)
+    if (users.length === 0)
       return res.status(401).json({ message: "Invalid email or password" });
 
-    const user = rows[0];
+    const user = users[0];
     const match = await bcrypt.compare(password, user.password);
     if (!match)
       return res.status(401).json({ message: "Invalid email or password" });
 
-    return res.json({
+    let role = user.role;
+    let full_name = user.full_name || "";
+
+    // Resolve missing roles dynamically
+    if (!role || role === "user") {
+      const [tutorRows] = await pool.execute(
+        "SELECT name FROM tutors WHERE email = ?",
+        [email]
+      );
+      const [tuteeRows] = await pool.execute(
+        "SELECT name FROM tutees WHERE email = ?",
+        [email]
+      );
+
+      if (tutorRows.length > 0) {
+        role = "tutor";
+        full_name = tutorRows[0].name;
+      } else if (tuteeRows.length > 0) {
+        role = "tutee";
+        full_name = tuteeRows[0].name;
+      } else {
+        role = "user";
+      }
+
+      await pool.execute("UPDATE users SET role = ?, full_name = ? WHERE email = ?", [
+        role,
+        full_name,
+        email,
+      ]);
+    }
+
+    res.json({
       message: "Login successful",
-      user: { id: user.id, email: user.email, role: "user" },
+      user: {
+        id: user.id,
+        full_name,
+        email: user.email,
+        role,
+      },
     });
   } catch (err) {
     console.error("/signin error:", err);
-    return res.status(500).json({ message: "Server error", error: String(err) });
+    res
+      .status(500)
+      .json({ message: "Server error during sign-in", error: String(err) });
   }
 });
-
 
 // Admin overview
 app.get("/admin/overview", async (req, res) => {
   try {
-    const [tutors] = await pool.execute("SELECT * FROM tutors");
-    const [tutees] = await pool.execute("SELECT * FROM tutees");
-    res.json({ tutors, tutees });
+    const [users] = await pool.execute(`
+      SELECT id, full_name, email, role, created_at 
+      FROM users 
+      ORDER BY created_at DESC
+    `);
+
+    const [tutors] = await pool.execute(`
+      SELECT id, email, name, id_number, term, department, units, created_at
+      FROM tutors 
+      ORDER BY created_at DESC
+    `);
+
+    const [tutees] = await pool.execute(`
+      SELECT id, email, name, id_number, term , department, unit, created_at
+      FROM tutees 
+      ORDER BY created_at DESC
+    `);
+
+    const summary = {
+      total_users: users.length,
+      tutors: tutors.length,
+      tutees: tutees.length,
+    };
+
+    res.json({ summary, users, tutors, tutees });
   } catch (err) {
     console.error("/admin/overview error:", err);
     res.status(500).json({ message: "Server error", error: String(err) });
   }
 });
 
-// Tutor registration (stores selectedUnits directly in tutors table)
+// Tutor registration
 app.post("/tutors", async (req, res) => {
   try {
     const { email, name, idNumber, term, department, selectedUnits } = req.body;
@@ -172,6 +243,11 @@ app.post("/tutors", async (req, res) => {
     const [result] = await pool.execute(
       "INSERT INTO tutors (email, name, id_number, term, department, units) VALUES (?, ?, ?, ?, ?, ?)",
       [email, name, idNumber, term, department, unitsString]
+    );
+
+    await pool.execute(
+      "UPDATE users SET role = 'tutor', full_name = ? WHERE email = ?",
+      [name, email]
     );
 
     res.status(201).json({ message: "Tutor registered successfully", tutorId: result.insertId });
@@ -194,6 +270,11 @@ app.post("/tutees", async (req, res) => {
       [email, name, idNumber, term, department, selectedUnit]
     );
 
+    await pool.execute(
+      "UPDATE users SET role = 'tutee', full_name = ? WHERE email = ?",
+      [name, email]
+    );
+
     res.status(201).json({ message: "Tutee registered successfully", tuteeId: result.insertId });
   } catch (err) {
     console.error("/tutees error:", err);
@@ -201,112 +282,40 @@ app.post("/tutees", async (req, res) => {
   }
 });
 
-// Recommendation (uses tutors.units column)
-app.get("/recommend/:role/:department/:unit", async (req, res) => {
+// Matches routes
+app.get("/matches", async (req, res) => {
   try {
-    const { role, department, unit } = req.params;
-
-    if (role === "tutor") {
-      const [rows] = await pool.execute(
-        "SELECT id, name, email, unit FROM tutees WHERE department = ? AND unit = ?",
-        [department, unit]
-      );
-      return res.json({ availableTutees: rows });
-    }
-
-    if (role === "tutee") {
-      const [rows] = await pool.execute(
-        "SELECT id, name, email, units FROM tutors WHERE department = ? AND FIND_IN_SET(?, REPLACE(units, ', ', ','))",
-        [department, unit]
-      );
-      return res.json({ availableTutors: rows });
-    }
-
-    res.status(400).json({ message: "Invalid role" });
-  } catch (err) {
-    console.error("/recommend error:", err);
-    res.status(500).json({ message: "Server error", error: String(err) });
-  }
-});
-
-// Match request
-app.post("/match-request", async (req, res) => {
-  try {
-    const { tutorEmail, tuteeEmail, unit } = req.body;
-    if (!tutorEmail || !tuteeEmail || !unit)
-      return res.status(400).json({ message: "Missing required fields" });
-
-    await pool.execute(
-      "INSERT INTO match_requests (tutor_email, tutee_email, unit) VALUES (?, ?, ?)",
-      [tutorEmail, tuteeEmail, unit]
+    const { email } = req.query;
+    const [rows] = await pool.execute(
+      "SELECT * FROM match_requests WHERE tutor_email = ? OR tutee_email = ?",
+      [email, email]
     );
-
-    const socketId = activeSockets.get(tuteeEmail);
-    if (socketId) {
-      io.to(socketId).emit("matchRequestReceived", { tutorEmail, unit });
-    }
-
-    res.status(201).json({ message: "Match request sent successfully" });
+    res.json(rows);
   } catch (err) {
-    console.error("/match-request error:", err);
-    res.status(500).json({ message: "Server error while sending match request", error: String(err) });
+    console.error("Error fetching matches:", err);
+    res.status(500).json({ message: "Server error fetching matches" });
   }
 });
 
-// Fetch matches
-app.get("/matches/:role/:id", async (req, res) => {
+app.put("/matches/:id/accept", async (req, res) => {
   try {
-    const { role, id } = req.params;
-
-    if (role === "tutor") {
-      const [rows] = await pool.execute(
-        `SELECT m.id as match_id, m.unit, m.status, m.created_at,
-         tutee.id AS tutee_id, tutee.name AS tutee_name, tutee.email AS tutee_email
-         FROM matches m
-         JOIN tutees tutee ON m.tutee_id = tutee.id
-         WHERE m.tutor_id = ? ORDER BY m.created_at DESC`,
-        [id]
-      );
-      return res.json({ matches: rows });
-    } else if (role === "tutee") {
-      const [rows] = await pool.execute(
-        `SELECT m.id as match_id, m.unit, m.status, m.created_at,
-         tutor.id AS tutor_id, tutor.name AS tutor_name, tutor.email AS tutor_email
-         FROM matches m
-         JOIN tutors tutor ON m.tutor_id = tutor.id
-         WHERE m.tutee_id = ? ORDER BY m.created_at DESC`,
-        [id]
-      );
-      return res.json({ matches: rows });
-    } else {
-      return res.status(400).json({ message: "Invalid role" });
-    }
-  } catch (err) {
-    console.error("/matches error:", err);
-    res.status(500).json({ message: "Server error", error: String(err) });
-  }
-});
-
-// Accept / Reject match
-app.post("/matches/:id/accept", async (req, res) => {
-  try {
-    const matchId = req.params.id;
-    await pool.execute("UPDATE matches SET status = 'accepted' WHERE id = ?", [matchId]);
+    const { id } = req.params;
+    await pool.execute("UPDATE match_requests SET status = 'accepted' WHERE id = ?", [id]);
     res.json({ message: "Match accepted" });
   } catch (err) {
-    console.error("/matches/accept error:", err);
-    res.status(500).json({ message: "Server error", error: String(err) });
+    console.error("Error accepting match:", err);
+    res.status(500).json({ message: "Server error" });
   }
 });
 
-app.post("/matches/:id/reject", async (req, res) => {
+app.put("/matches/:id/decline", async (req, res) => {
   try {
-    const matchId = req.params.id;
-    await pool.execute("UPDATE matches SET status = 'rejected' WHERE id = ?", [matchId]);
-    res.json({ message: "Match rejected" });
+    const { id } = req.params;
+    await pool.execute("UPDATE match_requests SET status = 'declined' WHERE id = ?", [id]);
+    res.json({ message: "Match declined" });
   } catch (err) {
-    console.error("/matches/reject error:", err);
-    res.status(500).json({ message: "Server error", error: String(err) });
+    console.error("Error declining match:", err);
+    res.status(500).json({ message: "Server error" });
   }
 });
 

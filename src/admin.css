@@ -1,7 +1,7 @@
 /* Color palette */
 :root {
   --blue: #002244;
-  --yellow:  #FFD600;
+  --yellow: #FFD600;
   --white: #ffffff;
 }
 
@@ -17,7 +17,7 @@
 
 /* Header */
 .admin-header {
-  background-color: var(#002244);
+  background-color: var(--blue);
   color: var(--white);
   display: flex;
   justify-content: space-between;
@@ -38,8 +38,8 @@
 }
 
 .logout-btn {
-  background-color: var(#FFD600);
-  color: var(#002244);
+  background-color: var(--yellow);
+  color: var(--blue);
   border: none;
   padding: 0.4rem 1rem;
   border-radius: 5px;
@@ -49,7 +49,7 @@
 }
 
 .logout-btn:hover {
-  background-color: #FFD600;
+  background-color: #f2c500;
 }
 
 /* Main content */
@@ -71,12 +71,13 @@
 }
 
 .admin-card {
-  background-color: var(#FFD600);
+  background-color: var(--yellow);
   color: var(--blue);
   padding: 1.5rem;
   border-radius: 10px;
   box-shadow: 0 2px 5px rgba(0, 0, 0, 0.15);
   transition: transform 0.2s ease, box-shadow 0.2s ease;
+  cursor: pointer;
 }
 
 .admin-card:hover {
@@ -88,8 +89,46 @@
 .admin-footer {
   text-align: center;
   padding: 1rem;
-  background-color: var(#002244);
+  background-color: var(--blue);
   color: var(--white);
   font-size: 0.9rem;
   margin-top: auto;
+}
+
+/* User Management Section */
+.user-management-section {
+  margin-top: 60px;
+  background: #f8f9fa;
+  padding: 20px;
+  border-radius: 12px;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.1);
+}
+
+.user-management-section h2 {
+  margin-bottom: 15px;
+  color: #333;
+}
+
+.user-table {
+  width: 100%;
+  border-collapse: collapse;
+  background: white;
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.user-table th,
+.user-table td {
+  border: 1px solid #ddd;
+  padding: 10px 15px;
+  text-align: left;
+}
+
+.user-table th {
+  background-color: #343a40;
+  color: white;
+}
+
+.user-table tr:nth-child(even) {
+  background-color: #f2f2f2;
 }

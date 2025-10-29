@@ -56,14 +56,7 @@ export default function LoggedIn() {
     navigate("/");
   };
 
-  const handleViewMatches = () => {
-    if (!userEmail || !userId) {
-      alert("User info missing. Please log in again.");
-      return;
-    }
-    navigate("/matches", { state: { user: { id: userId, email: userEmail, role: userRole } } });
-  };
-
+  
   return (
     <div className="dashboard-bg">
       <header className="dashboard-header">
@@ -71,9 +64,10 @@ export default function LoggedIn() {
 
         {/*  Buttons aligned to top-right */}
         <div className="header-buttons">
-          <button className="matches-btn" onClick={handleViewMatches}>
+          {/*<button className="matches-btn" onClick={handleViewMatches}>
             View Matches
           </button>
+          */}
           <button className="signout-btn" onClick={handleSignOut}>
             Sign Out
           </button>

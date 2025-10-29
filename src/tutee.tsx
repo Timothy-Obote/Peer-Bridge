@@ -8,12 +8,6 @@ interface UnitMap {
   [key: string]: string[];
 }
 
-interface Tutor {
-  name: string;
-  email: string;
-  units: string;
-}
-
 const departmentUnits: UnitMap = {
   "Applied Computer Technology": [
     "Introduction to Programming",
@@ -37,6 +31,8 @@ const departmentUnits: UnitMap = {
 };
 
 const Tutee: React.FC = () => {
+  const navigate = useNavigate();
+
   const [email, setEmail] = useState("");
   const [name, setName] = useState("");
   const [idNumber, setIdNumber] = useState("");
@@ -44,26 +40,6 @@ const Tutee: React.FC = () => {
   const [department, setDepartment] = useState("");
   const [selectedUnit, setSelectedUnit] = useState("");
   const [status, setStatus] = useState("");
-  const [recommendations, setRecommendations] = useState<Tutor[]>([]);
-  const navigate = useNavigate();
-
-  // Fetch available tutors for this tutee
-  const fetchRecommendations = async (dept: string, unit: string) => {
-    if (!dept || !unit) return;
-
-    try {
-      const res = await fetch(
-        `http://localhost:5000/recommend/tutee/${encodeURIComponent(dept)}/${encodeURIComponent(unit)}`
-      );
-
-      if (!res.ok) throw new Error("Failed to fetch tutor recommendations");
-
-      const data = await res.json();
-      setRecommendations(data.availableTutors || []);
-    } catch (error) {
-      console.error("Recommendation fetch error:", error);
-    }
-  };
 
   // Handle Tutee Registration Submit
   const handleSubmit = async (e: React.FormEvent) => {
@@ -94,15 +70,8 @@ const Tutee: React.FC = () => {
       setDepartment("");
       setSelectedUnit("");
 
-      // Redirect to Tutee Dashboard
-      setTimeout(() => {
-        navigate("/tutee-dashboard", {
-          state: { user: { name, email, role: "tutee" } },
-        });
-      }, 1000);
-
-      // Fetch tutor recommendations
-      await fetchRecommendations(department, selectedUnit);
+      // Redirect to Tutee Dashboard after registration
+      setTimeout(() => navigate("/tutee-dashboard"), 1000);
     } catch (error: unknown) {
       console.error("Error submitting tutee form:", error);
       setStatus("Server error — check your backend connection.");
@@ -201,23 +170,6 @@ const Tutee: React.FC = () => {
 
         {status && <p className="status-message">{status}</p>}
       </form>
-
-      {recommendations.length > 0 && (
-        <div className="recommendations-container">
-          <h3 className="recommendations-title">
-            Available Tutors Matching Your Unit
-          </h3>
-          <ul>
-            {recommendations.map((tutor, index) => (
-              <li key={index} className="recommendation-item">
-                <strong>{tutor.name}</strong> — {tutor.email}
-                <br />
-                <span>Units: {tutor.units}</span>
-              </li>
-            ))}
-          </ul>
-        </div>
-      )}
     </div>
   );
 };

@@ -8,12 +8,6 @@ interface UnitMap {
   [key: string]: string[];
 }
 
-interface Tutee {
-  name: string;
-  email: string;
-  unit: string;
-}
-
 const departmentUnits: UnitMap = {
   "Applied Computer Technology": [
     "Introduction to Programming",
@@ -44,7 +38,6 @@ const Tutor: React.FC = () => {
   const [department, setDepartment] = useState("");
   const [selectedUnits, setSelectedUnits] = useState<string[]>([]);
   const [status, setStatus] = useState("");
-  const [recommendations, setRecommendations] = useState<Tutee[]>([]);
   const navigate = useNavigate();
 
   const handleUnitSelection = (unit: string) => {
@@ -55,28 +48,6 @@ const Tutor: React.FC = () => {
     );
   };
 
-  // Fetch recommendations after submission
-  const fetchRecommendations = async (dept: string, units: string[]) => {
-    if (!dept || units.length === 0) return;
-
-    try {
-      const firstUnit = units[0];
-      const res = await fetch(
-        `http://localhost:5000/recommend/tutor/${encodeURIComponent(
-          dept
-        )}/${encodeURIComponent(firstUnit)}`
-      );
-
-      if (!res.ok) throw new Error("Failed to fetch recommendations");
-
-      const data = await res.json();
-      setRecommendations(data.availableTutees || []);
-    } catch (error) {
-      console.error("Recommendation fetch error:", error);
-    }
-  };
-
-  // Handle form submit
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     const tutorData = { email, name, idNumber, term, department, selectedUnits };
@@ -92,73 +63,25 @@ const Tutor: React.FC = () => {
 
       if (!res.ok) {
         const text = await res.text();
-        console.error("Server returned error response:", text);
-        setStatus("Server error — check your backend connection.");
+        console.error("Server returned error:", text);
+        setStatus("Error — could not register tutor.");
         return;
       }
 
-      const data = await res.json();
+      setStatus("Tutor registered successfully!");
+      // Clear form
+      setEmail("");
+      setName("");
+      setIdNumber("");
+      setTerm("FS");
+      setDepartment("");
+      setSelectedUnits([]);
 
-      if (res.ok) {
-        setStatus("Tutor registered successfully!");
-        setEmail("");
-        setName("");
-        setIdNumber("");
-        setTerm("FS");
-        setDepartment("");
-        setSelectedUnits([]);
-
-        // Fetch recommendations
-        await fetchRecommendations(department, selectedUnits);
-
-        // Redirect to Tutor Dashboard after successful registration
-        setTimeout(() => {
-          navigate("/tutor-dashboard", {
-            state: { user: { name, email, role: "tutor" } },
-          });
-        }, 1000);
-      } else {
-        setStatus(data.message || "Error submitting tutor data.");
-      }
+      // Redirect to Tutor Dashboard
+      navigate("/tutor-dashboard");
     } catch (error: unknown) {
       console.error("Error submitting tutor form:", error);
       setStatus("Server error — check your backend connection.");
-    }
-  };
-
-  // Handle sending match request
-  const handleSendMatchRequest = async (tutee: any) => {
-    try {
-      console.log("Attempting to send match request for:", tutee);
-
-      const response = await fetch("http://localhost:5000/add-match-request", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          tutorEmail: email,
-          tuteeEmail: tutee.email,
-          unit: tutee.unit,
-        }),
-      });
-
-      let data;
-      try {
-        data = await response.json();
-      } catch (jsonErr) {
-        console.error("Failed to parse JSON:", jsonErr);
-        throw new Error(`Invalid JSON response: ${response.statusText}`);
-      }
-
-      if (!response.ok) {
-        throw new Error(
-          `HTTP ${response.status}: ${data.message || "Unknown error"}`
-        );
-      }
-
-      alert(`Match request sent successfully to ${tutee.name}!`);
-    } catch (error: any) {
-      console.error("Detailed error sending match request:", error);
-      alert(`Error: ${error.message}`);
     }
   };
 
@@ -181,7 +104,7 @@ const Tutor: React.FC = () => {
           />
         </div>
 
-        {/* Name */}
+        {/* Full Name */}
         <div>
           <label className="block font-medium mb-1">Full Name</label>
           <input
@@ -244,7 +167,7 @@ const Tutor: React.FC = () => {
         {department && (
           <div>
             <label className="block font-medium mb-1">
-              Units for {department}
+              Select Units for {department}
             </label>
             <div className="space-y-2">
               {departmentUnits[department].map((unit) => (
@@ -261,8 +184,8 @@ const Tutor: React.FC = () => {
           </div>
         )}
 
-        {/* Submit + View Matches */}
-        <div className="text-center space-y-3">
+        {/* Submit Button */}
+        <div className="text-center">
           <button
             type="submit"
             className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-yellow-700"
@@ -270,50 +193,11 @@ const Tutor: React.FC = () => {
             Submit
           </button>
 
-          <div className="header-buttons">
-            <button
-              type="button"
-              onClick={() =>
-                navigate("/matches", {
-                  state: { user: { email, name, role: "tutor" } },
-                })
-              }
-              className="matches-btn"
-            >
-              View Matches
-            </button>
-          </div>
-
           {status && (
             <p className="text-center text-sm text-gray-700 mt-3">{status}</p>
           )}
         </div>
       </form>
-
-      {/* Recommendations */}
-      {recommendations.length > 0 && (
-        <div className="recommendations-container">
-          <h3 className="recommendations-title">
-            Available Tutees Matching Your Units
-          </h3>
-          <ul className="space-y-2">
-            {recommendations.map((tutee, index) => (
-              <li key={index} className="recommendation-item">
-                <div className="recommendation-info">
-                  <strong>{tutee.name}</strong> — {tutee.email}
-                  <span>Unit: {tutee.unit}</span>
-                </div>
-                <button
-                  onClick={() => handleSendMatchRequest(tutee)}
-                  className="send-match-btn"
-                >
-                  Send Match Request
-                </button>
-              </li>
-            ))}
-          </ul>
-        </div>
-      )}
     </div>
   );
 };

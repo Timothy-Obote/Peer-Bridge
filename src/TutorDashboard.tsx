@@ -4,6 +4,11 @@ import "./TutorDashboard.css";
 const TutorDashboard = () => {
   const navigate = useNavigate();
 
+  // Explicitly define the type for path
+  const handleNavigation = (path: string) => {
+    navigate(path);
+  };
+
   const handleLogout = () => {
     localStorage.removeItem("user");
     navigate("/");
@@ -11,22 +16,59 @@ const TutorDashboard = () => {
 
   return (
     <div className="tutor-dashboard">
-      <header className="tutor-header">
-        <h1>Tutor Dashboard</h1>
-        <button onClick={handleLogout} className="logout-btn">
+      {/* Sidebar Navigation */}
+      <aside className="sidebar">
+        <h2 className="logo">Tutor Panel</h2>
+        <nav className="nav-links">
+          <a onClick={() => handleNavigation("/tutor")} className="nav-item">
+            Register
+          </a>
+          <a onClick={() => handleNavigation("/courses")} className="nav-item">
+            Add Course
+          </a>
+          <a onClick={() => handleNavigation("/sessions")} className="nav-item">
+            My Sessions
+          </a>
+          <a onClick={() => handleNavigation("/performance")} className="nav-item">
+            Performance Reports
+          </a>
+          <a onClick={() => handleNavigation("/matches")} className="nav-item">
+            View Matches
+          </a>
+          <a onClick={() => handleNavigation("/profile")} className="nav-item">
+            Profile
+          </a>
+        </nav>
+
+        <button className="logout-btn" onClick={handleLogout}>
           Logout
         </button>
-      </header>
+      </aside>
 
-      <main className="tutor-content">
-        <h2>Welcome Tutor!</h2>
-        <p>Here you can manage your tutoring sessions, view student requests, and track your progress.</p>
+      {/* Main Content Area */}
+      <main className="main-content">
+        <header className="dashboard-header">
+          <h1>Welcome, Tutor</h1>
+          <p>
+            Manage your tutoring sessions, monitor student requests, and track your
+            performance — all in one place.
+          </p>
+        </header>
 
-        <div className="tutor-actions">
-          <button className="action-btn">View Tutees</button>
-          <button className="action-btn">Add Course</button>
-          <button className="action-btn">Performance Reports</button>
-        </div>
+        <section className="dashboard-summary">
+          <div className="summary-card">
+            <h3>Total Students</h3>
+            <p>15</p>
+          </div>
+          <div className="summary-card">
+            <h3>Active Sessions</h3>
+            <p>4</p>
+          </div>
+          <div className="summary-card">
+            <h3>Pending Requests</h3>
+            <p>2</p>
+          </div>
+        </section>
       </main>
     </div>
   );
