@@ -5,7 +5,7 @@ import Tutor from "./tutor";
 import Tutee from "./tutee";
 import TutorDashboard from "./TutorDashboard";
 import TuteeDashboard from "./TuteeDashboard";
-import AdminDashboard from "./admin";
+import AdminDashboard from "./Admin";
 
 import { useState } from "react";
 import {

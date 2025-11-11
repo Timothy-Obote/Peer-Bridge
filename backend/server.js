@@ -4,6 +4,7 @@ const mysql = require("mysql2");
 const bcrypt = require("bcrypt");
 const http = require("http");
 const { Server } = require("socket.io");
+require("dotenv").config();
 
 const app = express();
 app.use(cors());
@@ -16,8 +17,8 @@ const io = new Server(server, { cors: { origin: "*" } });
 const pool = mysql
   .createPool({
     host: "localhost",
-    user: "root",
-    password: "",
+    user: process.env.DB_USER,
+    password: process.env.DB_PASSWORD,
     database: "peerbridge",
     waitForConnections: true,
     connectionLimit: 10,
@@ -78,6 +79,19 @@ async function ensureTables() {
       email VARCHAR(255) UNIQUE NOT NULL,
       password VARCHAR(255) NOT NULL,
       role ENUM('user','tutor','tutee','admin') DEFAULT 'user',
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
+
+  await pool.execute(`
+    CREATE TABLE IF NOT EXISTS tutees (
+      id INT AUTO_INCREMENT PRIMARY KEY,
+      email VARCHAR(255) UNIQUE NOT NULL,
+      full_name VARCHAR(255),
+      id_number VARCHAR(255),
+      term VARCHAR(255),
+      department VARCHAR(255),
+      units VARCHAR(255),
       created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     )
   `);
