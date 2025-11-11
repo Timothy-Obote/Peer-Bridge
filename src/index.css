@@ -1,11 +1,16 @@
 /* index.css */
 
+/* === Global box sizing === */
+*, *::before, *::after {
+  box-sizing: border-box;
+}
+
 /* Reset + ensure full height */
 html, body, #root {
   margin: 0;
   padding: 0;
-  height: 100%;
-  width: 100%;
+  height: 100vh;        /* force full viewport height */
+  width: 100vw;         /* force full viewport width */
   font-family: system-ui, Avenir, Helvetica, Arial, sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
@@ -14,6 +19,14 @@ html, body, #root {
   font-weight: 400;
   background-color: #ffffff; /* White background */
   color: #002244;           /* Dark blue text */
+  display: flex;
+  flex-direction: column;
+  overflow-x: hidden; /* prevent horizontal scrollbar that can shrink layout */
+}
+
+/* Ensure body allows vertical scrolling while keeping full width */
+body {
+  overflow-y: auto;
 }
 
 /* Links */
@@ -56,4 +69,35 @@ button:hover {
   body {
     font-size: 0.95rem;
   }
+}
+
+/* === Ensure top-level app containers expand fully ===
+   This is the critical part that forces the dashboard to occupy
+   the entire viewport and prevents the "half-screen" issue. */
+#root, .App, .tutor-dashboard {
+  display: flex;
+  width: 100%;
+  height: 100%;
+  flex: 1;
+}
+
+/* If .App is used as a wrapper, make it fill space and allow column layout */
+.App {
+  flex-direction: column;
+  min-height: 100%;
+}
+
+/* Ensure the dashboard defaults to a row layout (sidebar + main) */
+.tutor-dashboard {
+  flex-direction: row;
+  background-color: #ffffff;
+  overflow: visible; /* main content handles its own scrolling */
+}
+
+/* Optional: if some parent added padding/margin that shrunk width, zero them out */
+#root > * {
+  margin: 0;
+  padding: 0;
+  width: 100%;
+  height: 100%;
 }

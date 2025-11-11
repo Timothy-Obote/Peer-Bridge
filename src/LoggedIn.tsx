@@ -69,7 +69,7 @@ export default function LoggedIn() {
           </button>
           */}
           <button className="signout-btn" onClick={handleSignOut}>
-            Sign Out
+            back 
           </button>
         </div>
       </header>

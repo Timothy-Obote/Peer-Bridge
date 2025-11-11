@@ -24,14 +24,20 @@ body {
 }
 
 .logo {
-  font-size: 1.5rem;
+  font-size: 2rem; /* Increased from 1.5rem */
   font-weight: bold;
   color: #FFD700; /* yellow */
+  flex: 1;
+  display: flex;
+  align-items: center; /* Vertically center */
+  height: 100%; /* Take full height of header */
 }
 
 .main-nav {
   display: flex;
   gap: 2rem;
+  justify-content: center;
+  flex: 2;
 }
 
 .main-nav a{
@@ -45,14 +51,20 @@ body {
   color: #fff;
 }
 
+.auth-buttons {
+  display: flex;
+  gap: 0.5rem;
+  justify-content: flex-end;
+  flex: 1;
+}
 
 .auth-buttons button {
-  margin-left: 0.5rem;
   padding: 0.5rem 1rem;
   border: none;
   border-radius: 6px;
   cursor: pointer;
   font-weight: bold;
+  white-space: nowrap;
 }
 
 .auth-buttons .sign-in {
@@ -140,7 +152,7 @@ body {
 
 .main-content {
   background: #002244; /* Deep blue */
-  color: #fff;
+  color: #e90303;
   padding: 2.5rem 2rem;
   border-radius: 16px;
   box-shadow: 0 4px 24px rgba(0,0,0,0.08);
@@ -161,7 +173,7 @@ body {
 }
 
 .main-content p {
-  color: #fff;
+  color:#002244;
   font-size: 1.15rem;
   line-height: 1.6;
   margin: 0;
@@ -283,9 +295,6 @@ html {
   line-height: 1.6;
 }
 
-
-
-
 /* Footer */
 .footer {
   background: #002244; /* blue */
@@ -303,10 +312,23 @@ html {
     text-align: center;
   }
 
+  .logo {
+    font-size: 1.8rem; /* Slightly smaller on mobile */
+    justify-content: center; /* Center on mobile */
+    height: auto;
+  }
+
+  .logo, .main-nav, .auth-buttons {
+    flex: none;
+    width: 100%;
+    justify-content: center;
+  }
+
   .auth-buttons {
     display: flex;
-    flex-direction: column;
+    flex-direction: row;
     gap: 0.5rem;
+    justify-content: center;
   }
 
   .main-bg {
