@@ -15,11 +15,8 @@ const TuteeDashboard = () => {
 
   return (
     <div className="dashboard-container">
-      {/* Sidebar */}
       <aside className="sidebar">
-        <div className="sidebar-header">
-          <h2>Tutee Panel</h2>
-        </div>
+        <h2 className="sidebar-title">Tutee Panel</h2>
         <nav className="sidebar-nav">
           <a onClick={() => handleNavigation("/tutee")} className="nav-link">
             Register
@@ -42,11 +39,10 @@ const TuteeDashboard = () => {
         </button>
       </aside>
 
-      {/* Main content */}
       <main className="main-content">
         <header className="main-header">
           <h1>Welcome, Tutee</h1>
-          <p>Manage your sessions, feedback, and matches all in one place.</p>
+          <p>Find tutors, track your learning, and manage your sessions.</p>
         </header>
 
         <section className="dashboard-cards">
