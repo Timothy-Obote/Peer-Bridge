@@ -16,7 +16,7 @@ const TuteeDashboard = () => {
   return (
     <div className="dashboard-container">
       <aside className="sidebar">
-        <h2 className="sidebar-title">Tutee Panel</h2>
+        <h2 className="sidebar-title" style={{ color: '#facc15' }}>Tutee Panel</h2>
         <nav className="sidebar-nav">
           <a onClick={() => handleNavigation("/tutee")} className="nav-link">
             Register

@@ -48,7 +48,7 @@ const TutorDashboard = () => {
       {/* Main Content Area */}
       <main className="main-content">
         <header className="dashboard-header">
-          <h1>Welcome, Tutor</h1>
+          <h1 style={{ color: 'white' }}>Welcome, Tutor</h1>
           <p>
             Manage your tutoring sessions, monitor student requests, and track your
             performance — all in one place.
