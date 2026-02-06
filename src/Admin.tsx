@@ -28,7 +28,7 @@ interface Tutee {
   id_number: string;
   department: string;
   term: string;
-  unit: string;
+  units: string;
   created_at: string;
 }
 
@@ -234,7 +234,7 @@ const AdminDashboard: React.FC = () => {
                       <td>{t.id_number}</td>
                       <td>{t.department}</td>
                       <td>{t.term}</td>
-                      <td>{t.unit}</td>
+                      <td>{t.units}</td>
                       <td>{new Date(t.created_at).toLocaleString()}</td>
                     </tr>
                   ))}
