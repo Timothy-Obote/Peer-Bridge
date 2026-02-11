@@ -221,7 +221,7 @@ const AdminDashboard: React.FC = () => {
                     <th>ID Number</th>
                     <th>Department</th>
                     <th>Term</th>
-                    <th>Unit</th>
+                    <th>Units</th>
                     <th>Created At</th>
                   </tr>
                 </thead>

@@ -6,14 +6,41 @@ const http = require("http");
 const { Server } = require("socket.io");
 require("dotenv").config();
 
+// Import new route files
+const programRoutes = require('./routes/programs');
+const tuteeRoutes = require('./routes/tutees');
+const db = require('./db'); // Import db config
+
 const app = express();
+
+// ============ MIDDLEWARE ============
 app.use(cors());
 app.use(express.json());
+
+// ============ ROOT ROUTE ============
+app.get("/", (req, res) => {
+    res.json({ 
+        message: "Peer Bridge API is running",
+        endpoints: {
+            health: "/health",
+            programs: "/api/programs",
+            program_courses: "/api/programs/:programId/courses",
+            tutees: "/tutees",
+            tutee_courses: "/tutees/:id/courses",
+            tutors: "/tutors",
+            signin: "/signin",
+            signup: "/signup",
+            admin: "/admin/overview",
+            matches: "/api/matches",
+            test_db: "/test-db"
+        }
+    });
+});
 
 const server = http.createServer(app);
 const io = new Server(server, { cors: { origin: "*" } });
 
-// Database connection
+// Database connection (keep your existing pool)
 const pool = mysql
   .createPool({
     host: process.env.DB_HOST,
@@ -72,11 +99,13 @@ async function ensureTables() {
     CREATE TABLE IF NOT EXISTS tutees (
       id INT AUTO_INCREMENT PRIMARY KEY,
       email VARCHAR(255) UNIQUE NOT NULL,
+      password VARCHAR(255),
       full_name VARCHAR(255),
       id_number VARCHAR(255),
       term VARCHAR(255),
-      department VARCHAR(255),
-      units VARCHAR(255),
+      program_level ENUM('undergraduate', 'graduate'),
+      program_id INT,
+      selected_courses JSON,
       created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     )
   `);
@@ -108,9 +137,75 @@ async function ensureTables() {
 }
 ensureTables().catch(console.error);
 
+// ============ ROUTES ============
+app.use('/api', programRoutes);
+app.use('/', tuteeRoutes);
+
+// ============ FIXED PROGRAM COURSES ENDPOINT ============
+app.get('/api/programs/:programId/courses', async (req, res) => {
+    try {
+        const { programId } = req.params;
+        
+        console.log(`Fetching courses for program ID: ${programId}`);
+        
+        // First check if program exists
+        const [programCheck] = await pool.query(
+            "SELECT * FROM programs WHERE id = ?", 
+            [programId]
+        );
+        
+        if (programCheck.length === 0) {
+            return res.status(404).json({ message: 'Program not found' });
+        }
+        
+        // Check if program_courses has data
+        const [linkCheck] = await pool.query(
+            "SELECT COUNT(*) as count FROM program_courses WHERE program_id = ?", 
+            [programId]
+        );
+        console.log(`Found ${linkCheck[0].count} course links`);
+        
+        // Get courses with proper column names
+        const [rows] = await pool.query(`
+            SELECT 
+                c.id,
+                c.\`COL 2\` as unit_code,
+                c.\`COL 3\` as unit_name
+            FROM courses_1 c
+            INNER JOIN program_courses pc ON c.id = pc.course_id
+            WHERE pc.program_id = ?
+            ORDER BY c.\`COL 3\`
+        `, [programId]);
+        
+        console.log(`Returning ${rows.length} courses`);
+        res.json(rows);
+        
+    } catch (error) {
+        console.error('Error in /api/programs/:programId/courses:', error);
+        res.status(500).json({ 
+            message: 'Error fetching courses',
+            error: error.message,
+            sql: error.sql || null
+        });
+    }
+});
+
 // Health check
 app.get("/health", (req, res) => {
   res.json({ status: "ok", time: new Date().toISOString() });
+});
+
+// Test database connection
+app.get('/test-db', async (req, res) => {
+    try {
+        const [rows] = await pool.query('SELECT 1 + 1 AS solution');
+        res.json({ 
+            message: 'Database connected successfully!', 
+            result: rows[0].solution 
+        });
+    } catch (error) {
+        res.status(500).json({ message: 'Database connection failed', error: error.message });
+    }
 });
 
 // ================= USERS =================
@@ -196,7 +291,7 @@ app.get("/admin/overview", async (req, res) => {
   }
 });
 
-// ================= TUTOR / TUTEE REGISTRATION =================
+// ================= TUTOR REGISTRATION =================
 app.post("/tutors", async (req, res) => {
   try {
     const { email, name, idNumber, term, department, selectedUnits } = req.body;
@@ -212,24 +307,6 @@ app.post("/tutors", async (req, res) => {
     await pool.execute("UPDATE users SET role = 'tutor', full_name = ? WHERE email = ?", [name, email]);
 
     res.status(201).json({ message: "Tutor registered successfully", tutorId: result.insertId });
-  } catch (err) {
-    res.status(500).json({ message: "Server error", error: String(err) });
-  }
-});
-
-app.post("/tutees", async (req, res) => {
-  try {
-    const { email, name, idNumber, term, department, selectedUnit } = req.body;
-    if (!email || !name || !idNumber || !department || !selectedUnit) return res.status(400).json({ message: "Missing required fields" });
-
-    const [result] = await pool.execute(
-      "INSERT INTO tutees (email, full_name, id_number, term, department, units) VALUES (?, ?, ?, ?, ?, ?)",
-      [email, name, idNumber, term, department, selectedUnit]
-    );
-
-    await pool.execute("UPDATE users SET role = 'tutee', full_name = ? WHERE email = ?", [name, email]);
-
-    res.status(201).json({ message: "Tutee registered successfully", tuteeId: result.insertId });
   } catch (err) {
     res.status(500).json({ message: "Server error", error: String(err) });
   }
@@ -351,5 +428,5 @@ app.get("/api/matches", async (req, res) => {
 });
 
 // Start server
-const PORT = 5000;
+const PORT = 5001;
 server.listen(PORT, () => console.log(`Server running at http://localhost:${PORT}`));

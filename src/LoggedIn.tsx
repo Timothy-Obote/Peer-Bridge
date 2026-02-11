@@ -34,7 +34,7 @@ export default function LoggedIn() {
   useEffect(() => {
     if (!userEmail) return;
 
-    const socket = io("http://localhost:5000");
+    const socket = io("http://localhost:5001");
 
     socket.on("connect", () => {
       console.log("Connected to socket server");

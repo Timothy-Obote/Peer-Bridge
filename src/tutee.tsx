@@ -1,177 +1,473 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
+import { tuteeService } from "./services/tuteeService";
+import type { Program, Course, TuteeRegistrationData } from "./types/course.types";
 import "./tutee.css";
 
-type TermOption = "FS" | "SS" | "US";
-
-interface UnitMap {
-  [key: string]: string[];
-}
-
-const departmentUnits: UnitMap = {
-  "Applied Computer Technology": [
-    "Introduction to Programming",
-    "Data Structures",
-    "Databases",
-    "Computer Networks",
-    "Operating Systems",
-  ],
-  "Business Administration": [
-    "Principles of Management",
-    "Accounting 101",
-    "Marketing Fundamentals",
-    "Business Law",
-  ],
-  "International Relations": [
-    "Intro to International Relations",
-    "Diplomacy & Foreign Policy",
-    "Global Security",
-    "International Organizations",
-  ],
-};
-
 const Tutee: React.FC = () => {
-  const navigate = useNavigate();
+    const navigate = useNavigate();
 
-  const [email, setEmail] = useState("");
-  const [name, setName] = useState("");
-  const [idNumber, setIdNumber] = useState("");
-  const [term, setTerm] = useState<TermOption>("FS");
-  const [department, setDepartment] = useState("");
-  const [selectedUnit, setSelectedUnit] = useState("");
-  const [status, setStatus] = useState("");
+    // Form state
+    const [formData, setFormData] = useState<TuteeRegistrationData>({
+        email: "",
+        password: "",
+        name: "",
+        idNumber: "",
+        program_level: "",
+        program_id: "",
+        selected_courses: [],
+        term: "FS"
+    });
 
-  // Handle Tutee Registration Submit
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    const tuteeData = { email, name, idNumber, term, department, selectedUnit };
+    // UI state
+    const [programs, setPrograms] = useState<{
+        undergraduate: Program[];
+        graduate: Program[];
+    }>({ undergraduate: [], graduate: [] });
 
-    try {
-      setStatus("Submitting...");
+    const [availableCourses, setAvailableCourses] = useState<Course[]>([]);
+    const [loading, setLoading] = useState({
+        programs: false,
+        courses: false,
+        submit: false
+    });
+    const [status, setStatus] = useState({ type: "", message: "" });
 
-      const res = await fetch("http://localhost:5000/tutees", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(tuteeData),
-      });
+    // Fetch programs on component mount
+    useEffect(() => {
+        fetchPrograms();
+    }, []);
 
-      const data = await res.json();
+    // Fetch courses when program is selected
+    useEffect(() => {
+        if (formData.program_id) {
+            fetchProgramCourses(Number(formData.program_id));
+        } else {
+            setAvailableCourses([]);
+        }
+    }, [formData.program_id]);
 
-      if (!res.ok) {
-        setStatus(data.message || "Error submitting tutee data.");
-        return;
-      }
+    const fetchPrograms = async () => {
+        setLoading(prev => ({ ...prev, programs: true }));
+        try {
+            const data = await tuteeService.fetchPrograms();
+            setPrograms(data);
+        } catch (error) {
+            showStatus("error", "Failed to load programs. Please refresh.");
+            console.error("Error fetching programs:", error);
+        } finally {
+            setLoading(prev => ({ ...prev, programs: false }));
+        }
+    };
 
-      setStatus("Tutee registered successfully!");
-      setEmail("");
-      setName("");
-      setIdNumber("");
-      setTerm("FS");
-      setDepartment("");
-      setSelectedUnit("");
+    const fetchProgramCourses = async (programId: number) => {
+        setLoading(prev => ({ ...prev, courses: true }));
+        try {
+            const courses = await tuteeService.fetchProgramCourses(programId);
+            setAvailableCourses(courses);
+            setFormData(prev => ({ ...prev, selected_courses: [] }));
+        } catch (error) {
+            showStatus("error", "Failed to load courses for this program.");
+            console.error("Error fetching courses:", error);
+        } finally {
+            setLoading(prev => ({ ...prev, courses: false }));
+        }
+    };
 
-      // Redirect to Tutee Dashboard after registration
-      setTimeout(() => navigate("/tutee-dashboard"), 1000);
-    } catch (error: unknown) {
-      console.error("Error submitting tutee form:", error);
-      setStatus("Server error — check your backend connection.");
-    }
-  };
+    const handleInputChange = (
+        e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>
+    ) => {
+        const { name, value } = e.target;
+        setFormData(prev => ({ ...prev, [name]: value }));
+        
+        if (name === "program_level") {
+            setFormData(prev => ({ 
+                ...prev, 
+                program_id: "",
+                selected_courses: [] 
+            }));
+            setAvailableCourses([]);
+        }
+    };
 
-  return (
-    <div className="tutee-container">
-      <h2 className="tutee-title">Tutee Registration</h2>
+    const handleCourseToggle = (courseId: number) => {
+        setFormData(prev => {
+            const current = [...prev.selected_courses];
+            const index = current.indexOf(courseId);
+            
+            if (index === -1) {
+                if (current.length < 2) {
+                    current.push(courseId);
+                } else {
+                    showStatus("warning", "Maximum 2 courses allowed per semester");
+                    return prev;
+                }
+            } else {
+                current.splice(index, 1);
+            }
+            
+            return { ...prev, selected_courses: current };
+        });
+    };
 
-      <form onSubmit={handleSubmit} className="tutee-form">
-        <div>
-          <label>Email Address</label>
-          <input
-            type="email"
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            required
-          />
+    const handleSubmit = async (e: React.FormEvent) => {
+        e.preventDefault();
+
+        if (!formData.program_level) {
+            showStatus("error", "Please select a program level");
+            return;
+        }
+
+        if (!formData.program_id) {
+            showStatus("error", "Please select a program");
+            return;
+        }
+
+        if (formData.selected_courses.length === 0) {
+            showStatus("error", "Please select at least one course");
+            return;
+        }
+
+        setLoading(prev => ({ ...prev, submit: true }));
+        showStatus("info", "Processing registration...");
+
+        try {
+            await tuteeService.registerTutee(formData);
+            showStatus("success", "Registration successful! Redirecting...");
+            
+            setFormData({
+                email: "",
+                password: "",
+                name: "",
+                idNumber: "",
+                program_level: "",
+                program_id: "",
+                selected_courses: [],
+                term: "FS"
+            });
+            setAvailableCourses([]);
+
+            setTimeout(() => navigate("/tutee-dashboard"), 2000);
+        } catch (error: any) {
+            showStatus("error", error.message || "Registration failed");
+            console.error("Registration error:", error);
+        } finally {
+            setLoading(prev => ({ ...prev, submit: false }));
+        }
+    };
+
+    const showStatus = (type: string, message: string) => {
+        setStatus({ type, message });
+        setTimeout(() => setStatus({ type: "", message: "" }), 5000);
+    };
+
+    const getSelectedProgramName = () => {
+        if (!formData.program_id) return "";
+        const allPrograms = [...programs.undergraduate, ...programs.graduate];
+        const program = allPrograms.find(p => p.id === formData.program_id);
+        return program?.program_name || "";
+    };
+
+    return (
+        <div className="tutee-container">
+            <div className="tutee-card">
+                <div className="tutee-header">
+                    <h2 className="tutee-title">Tutee Registration</h2>
+                    <p className="tutee-subtitle">PACS Department</p>
+                </div>
+
+                <form onSubmit={handleSubmit} className="tutee-form">
+                    {/* SECTION 1: PERSONAL INFORMATION */}
+                    <div className="form-section">
+                        <div className="section-title">
+                            <span className="section-number">01</span>
+                            <h3>Personal Information</h3>
+                        </div>
+                        
+                        <div className="form-grid">
+                            <div className="form-group full-width">
+                                <label>Full Name <span className="required">*</span></label>
+                                <input
+                                    type="text"
+                                    name="name"
+                                    value={formData.name}
+                                    onChange={handleInputChange}
+                                    placeholder="As appears on official documents"
+                                    required
+                                    disabled={loading.submit}
+                                />
+                            </div>
+
+                            <div className="form-group">
+                                <label>Email Address <span className="required">*</span></label>
+                                <input
+                                    type="email"
+                                    name="email"
+                                    value={formData.email}
+                                    onChange={handleInputChange}
+                                    placeholder="student@usiu.co.ke"
+                                    required
+                                    disabled={loading.submit}
+                                />
+                            </div>
+
+                            <div className="form-group">
+                                <label>Password <span className="required">*</span></label>
+                                <input
+                                    type="password"
+                                    name="password"
+                                    value={formData.password}
+                                    onChange={handleInputChange}
+                                    placeholder="Create secure password"
+                                    required
+                                    disabled={loading.submit}
+                                    minLength={6}
+                                />
+                                <span className="field-hint">Minimum 6 characters</span>
+                            </div>
+
+                            <div className="form-group">
+                                <label>Student ID <span className="required">*</span></label>
+                                <input
+                                    type="text"
+                                    name="idNumber"
+                                    value={formData.idNumber}
+                                    onChange={handleInputChange}
+                                    placeholder="Official student ID number"
+                                    required
+                                    disabled={loading.submit}
+                                />
+                            </div>
+
+                            <div className="form-group">
+                                <label>Academic Term <span className="required">*</span></label>
+                                <select
+                                    name="term"
+                                    value={formData.term}
+                                    onChange={handleInputChange}
+                                    required
+                                    disabled={loading.submit}
+                                >
+                                    <option value="FS">Fall Semester (FS)</option>
+                                    <option value="SS">Summer Semester (SS)</option>
+                                    <option value="US">Spring Semester (US)</option>
+                                </select>
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* SECTION 2: ACADEMIC PROGRAM */}
+                    <div className="form-section">
+                        <div className="section-title">
+                            <span className="section-number">02</span>
+                            <h3>Academic Program</h3>
+                        </div>
+
+                        <div className="form-grid">
+                            <div className="form-group">
+                                <label>Program Level <span className="required">*</span></label>
+                                <select
+                                    name="program_level"
+                                    value={formData.program_level}
+                                    onChange={handleInputChange}
+                                    required
+                                    disabled={loading.programs || loading.submit}
+                                    className={loading.programs ? "loading" : ""}
+                                >
+                                    <option value="">-- Select Program Level --</option>
+                                    <option value="undergraduate">Undergraduate (Bachelor's Degree)</option>
+                                    <option value="graduate">Graduate (Master's/Doctoral)</option>
+                                </select>
+                                {loading.programs && (
+                                    <span className="field-hint loading-hint">Loading programs...</span>
+                                )}
+                            </div>
+
+                            {formData.program_level && (
+                                <div className="form-group">
+                                    <label>Degree Program <span className="required">*</span></label>
+                                    <select
+                                        name="program_id"
+                                        value={formData.program_id}
+                                        onChange={handleInputChange}
+                                        required
+                                        disabled={loading.programs || !programs[formData.program_level].length || loading.submit}
+                                    >
+                                        <option value="">-- Select Your Degree Program --</option>
+                                        {programs[formData.program_level].map((program) => (
+                                            <option key={program.id} value={program.id}>
+                                                {program.program_name}
+                                            </option>
+                                        ))}
+                                    </select>
+                                    {programs[formData.program_level].length === 0 && (
+                                        <span className="field-error">
+                                            No programs available for this level
+                                        </span>
+                                    )}
+                                </div>
+                            )}
+                        </div>
+                    </div>
+
+                    {/* SECTION 3: COURSE REGISTRATION */}
+                    {formData.program_id && (
+                        <div className="form-section">
+                            <div className="section-title">
+                                <span className="section-number">03</span>
+                                <h3>Course Registration</h3>
+                                <div className="credit-badge">
+                                    <span className="credit-icon"></span>
+                                    <span className="credit-text">{formData.selected_courses.length} / 2 Courses Selected</span>
+                                </div>
+                            </div>
+
+                            <div className="program-info-panel">
+                                <div className="program-info-row">
+                                    <span className="info-label">Program of Study:</span>
+                                    <span className="info-value">{getSelectedProgramName()}</span>
+                                </div>
+                                <div className="program-info-row">
+                                    <span className="info-label">Registration Term:</span>
+                                    <span className="info-value">
+                                        {formData.term === 'FS' ? 'Fall Semester' : 
+                                         formData.term === 'SS' ? 'Summer Semester' : 'Spring Semester'}
+                                    </span>
+                                </div>
+                                <div className="program-info-row highlight">
+                                    <span className="info-label">Course Load:</span>
+                                    <span className="info-value">
+                                        {formData.selected_courses.length} Course(s) Selected
+                                        {formData.selected_courses.length === 2 && ' (Maximum)'}
+                                    </span>
+                                </div>
+                            </div>
+
+                            {loading.courses ? (
+                                <div className="academic-loading">
+                                    <div className="academic-spinner"></div>
+                                    <p>Loading course catalog...</p>
+                                </div>
+                            ) : (
+                                <>
+                                    {availableCourses.length === 0 ? (
+                                        <div className="empty-state">
+                                            <div className="empty-icon"></div>
+                                            <h4>No Courses Available</h4>
+                                            <p>This program currently has no available courses for registration.</p>
+                                            <small>Please contact the Academic Registry for assistance.</small>
+                                        </div>
+                                    ) : (
+                                        <div className="courses-table-wrapper">
+                                            <table className="courses-table">
+                                                <thead>
+                                                    <tr>
+                                                        <th style={{ width: "5%" }}></th>
+                                                        <th style={{ width: "20%" }}>Course Code</th>
+                                                        <th style={{ width: "65%" }}>Course Title</th>
+                                                        <th style={{ width: "10%" }}>Credits</th>
+                                                    </tr>
+                                                </thead>
+                                                <tbody>
+                                                    {availableCourses.map((course) => {
+                                                        const isSelected = formData.selected_courses.includes(course.id);
+                                                        const isDisabled = formData.selected_courses.length >= 2 && !isSelected;
+                                                        
+                                                        return (
+                                                            <tr 
+                                                                key={course.id}
+                                                                onClick={() => !loading.submit && !isDisabled && handleCourseToggle(course.id)}
+                                                                className={`
+                                                                    ${isSelected ? 'selected-row' : ''}
+                                                                    ${isDisabled ? 'disabled-row' : ''}
+                                                                    ${!isDisabled && !isSelected ? 'selectable-row' : ''}
+                                                                `}
+                                                            >
+                                                                <td className="checkbox-cell">
+                                                                    <div className={`custom-checkbox ${isSelected ? 'checked' : ''}`}>
+                                                                        {isSelected && '✓'}
+                                                                    </div>
+                                                                </td>
+                                                                <td className="code-cell">
+                                                                    <span className="course-code-badge">{course.unit_code}</span>
+                                                                </td>
+                                                                <td className="title-cell">
+                                                                    <span className="course-title">{course.unit_name}</span>
+                                                                </td>
+                                                                <td className="credits-cell">
+                                                                    <span className="credit-badge">{course.credits || 3}</span>
+                                                                </td>
+                                                            </tr>
+                                                        );
+                                                    })}
+                                                </tbody>
+                                            </table>
+                                            <div className="table-footer">
+                                                <span className="footer-note">
+                                                    Maximum 2 courses per semester. Click on a row to select/deselect.
+                                                </span>
+                                            </div>
+                                        </div>
+                                    )}
+                                </>
+                            )}
+                        </div>
+                    )}
+
+                    {/* SUBMIT SECTION */}
+                    <div className="form-footer">
+                        <button
+                            type="submit"
+                            disabled={
+                                loading.submit ||
+                                formData.selected_courses.length === 0 ||
+                                !formData.program_id ||
+                                loading.courses
+                            }
+                            className={`submit-button ${loading.submit ? 'submitting' : ''}`}
+                        >
+                            {loading.submit ? (
+                                <>
+                                    <span className="button-spinner"></span>
+                                    Processing Registration...
+                                </>
+                            ) : (
+                                <>
+                                    <span className="button-icon"></span>
+                                    Submit Registration
+                                </>
+                            )}
+                        </button>
+                        <p className="form-notice">
+                            By submitting this form, you confirm that the information provided is accurate
+                            and complete in accordance with university regulations.
+                        </p>
+                    </div>
+                </form>
+
+                {/* STATUS NOTIFICATIONS */}
+                {status.message && (
+                    <div className={`notification-panel ${status.type}`}>
+                        <div className="notification-icon">
+                            {status.type === 'success' && '✓'}
+                            {status.type === 'error' && '✗'}
+                            {status.type === 'warning' && '⚠'}
+                            {status.type === 'info' && 'ℹ'}
+                        </div>
+                        <div className="notification-content">
+                            <span className="notification-title">
+                                {status.type === 'success' && 'Success'}
+                                {status.type === 'error' && 'Error'}
+                                {status.type === 'warning' && 'Warning'}
+                                {status.type === 'info' && 'Notice'}
+                            </span>
+                            <span className="notification-message">{status.message}</span>
+                        </div>
+                    </div>
+                )}
+            </div>
         </div>
-
-        <div>
-          <label>Full Name</label>
-          <input
-            type="text"
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-            required
-          />
-        </div>
-
-        <div>
-          <label>ID Number</label>
-          <input
-            type="text"
-            value={idNumber}
-            onChange={(e) => setIdNumber(e.target.value)}
-            required
-          />
-        </div>
-
-        <div>
-          <label>Term</label>
-          <select
-            value={term}
-            onChange={(e) => setTerm(e.target.value as TermOption)}
-          >
-            <option value="FS">Fall Semester (FS)</option>
-            <option value="SS">Summer Semester (SS)</option>
-            <option value="US">Spring Semester (US)</option>
-          </select>
-        </div>
-
-        <div>
-          <label>Department</label>
-          <select
-            value={department}
-            onChange={(e) => {
-              setDepartment(e.target.value);
-              setSelectedUnit("");
-            }}
-            required
-          >
-            <option value="">-- Select Department --</option>
-            {Object.keys(departmentUnits).map((dept) => (
-              <option key={dept} value={dept}>
-                {dept}
-              </option>
-            ))}
-          </select>
-        </div>
-
-        {department && (
-          <div>
-            <label>Select Unit</label>
-            <select
-              value={selectedUnit}
-              onChange={(e) => setSelectedUnit(e.target.value)}
-              required
-            >
-              <option value="">-- Select Unit --</option>
-              {departmentUnits[department].map((unit) => (
-                <option key={unit} value={unit}>
-                  {unit}
-                </option>
-              ))}
-            </select>
-          </div>
-        )}
-
-        <div className="tutee-btn-container">
-          <button type="submit" className="submit-btn">
-            Submit
-          </button>
-        </div>
-
-        {status && <p className="status-message">{status}</p>}
-      </form>
-    </div>
-  );
+    );
 };
 
 export default Tutee;
