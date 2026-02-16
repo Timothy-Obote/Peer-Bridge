@@ -1,6 +1,6 @@
 import type { ProgramGroup, Course, TuteeRegistrationData } from '../types/course.types';
 
-const API_BASE = 'http://localhost:5001/api';
+const API_BASE = `${import.meta.env.VITE_API_URL}/api`;
 
 export const tuteeService = {
     // Fetch all programs
@@ -44,7 +44,7 @@ export const tuteeService = {
             department: data.department
         };
 
-        const response = await fetch('http://localhost:5001/tutees', {
+        const response = await fetch(`${import.meta.env.VITE_API_URL}/api/tutees`, {
             method: 'POST',
             headers: { 
                 'Content-Type': 'application/json'

@@ -39,13 +39,15 @@ export default function LoggedIn() {
   useEffect(() => {
     if (!userEmail) return;
 
-    console.log(`Connecting to socket server at: ${SOCKET_URL}`);
+    console.log(`Connecting to socket server at: ${import.meta.env.VITE_API_URL}`);
     
     // Create socket connection to deployed backend
-    const newSocket = io(SOCKET_URL, {
-      withCredentials: true,
-      transports: ['websocket', 'polling'], // Fallback to polling if websocket fails
-    });
+    const newSocket = io(import.meta.env.VITE_API_URL, {
+    withCredentials: true,
+    path: '/socket.io', // Explicitly set the path
+    transports: ['polling', 'websocket'],
+    reconnectionAttempts: 5
+});
 
     newSocket.on("connect", () => {
       console.log("Connected to socket server");
