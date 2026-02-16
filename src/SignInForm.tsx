@@ -1,20 +1,22 @@
+// src/SignIn.tsx
 import React, { useState } from "react";
 import { useNavigate } from "react-router-dom";
+import "./SignIn.css"; // optional styling
 
-interface SignInFormProps {
-  onClose: () => void;
-}
-
-export default function SignInForm({ onClose }: SignInFormProps) {
+export default function SignIn() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [isLoading, setIsLoading] = useState(false);
+  const [errorMessage, setErrorMessage] = useState("");
   const navigate = useNavigate();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    setIsLoading(true);
+    setErrorMessage("");
 
     try {
-      const res = await fetch("http://localhost:5000/signin", {
+      const res = await fetch("http://localhost:5001/signin", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email, password }),
@@ -23,69 +25,63 @@ export default function SignInForm({ onClose }: SignInFormProps) {
       const data = await res.json();
 
       if (!res.ok) {
-        alert(data.message || "Invalid credentials");
+        setErrorMessage(data.message || "Invalid credentials");
+        setIsLoading(false);
         return;
       }
 
-      // Store user info locally
       localStorage.setItem("user", JSON.stringify(data.user));
+      if (data.token) localStorage.setItem("token", data.token);
 
       const role = data.user?.role;
-
-      // Redirect user based on their role
-      switch (role) {
-        case "admin":
-          navigate("/admin-dashboard");
-          break;
-        case "tutor":
-          navigate("/tutor-dashboard");
-          break;
-        case "tutee":
-          navigate("/tutee-dashboard");
-          break;
-        default:
-          navigate("/dashboard"); // fallback
-          break;
-      }
-
-      // Close modal after navigation
-      onClose();
+      // Redirect based on role
+      if (role === "admin") window.location.href = "/admin-dashboard";
+      else if (role === "tutor") window.location.href = "/tutor-dashboard";
+      else if (role === "tutee") window.location.href = "/tutee-dashboard";
+      else window.location.href = "/dashboard";
     } catch (error) {
-      console.error("Sign-in failed:", error);
-      alert("Network or server error. Please try again.");
+      setErrorMessage("Network error. Please try again.");
+      setIsLoading(false);
     }
   };
 
   return (
-    <div className="modal">
-      <form className="auth-form" onSubmit={handleSubmit}>
+    <div className="signin-page">
+      <div className="signin-container">
+        <button className="back-home" onClick={() => navigate("/")}>
+          ← Back to Home
+        </button>
         <h2>Sign In</h2>
-
-        <input
-          type="email"
-          placeholder="Email"
-          value={email}
-          onChange={(e) => setEmail(e.target.value)}
-          required
-        />
-
-        <input
-          type="password"
-          placeholder="Password"
-          value={password}
-          onChange={(e) => setPassword(e.target.value)}
-          required
-        />
-
-        <div className="button-group">
-          <button type="submit" className="sign-in-btn">
-            Sign In
+        {errorMessage && <div className="error-message">{errorMessage}</div>}
+        <form onSubmit={handleSubmit}>
+          <div className="form-group">
+            <input
+              type="email"
+              placeholder="Email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              required
+              disabled={isLoading}
+            />
+          </div>
+          <div className="form-group">
+            <input
+              type="password"
+              placeholder="Password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              required
+              disabled={isLoading}
+            />
+          </div>
+          <button type="submit" disabled={isLoading} className="signin-btn">
+            {isLoading ? "Signing in..." : "Sign In"}
           </button>
-          <button type="button" className="cancel-btn" onClick={onClose}>
-            Cancel
-          </button>
-        </div>
-      </form>
+        </form>
+        <p className="signup-link">
+          Don't have an account? <a href="/dashboard">Sign Up</a>
+        </p>
+      </div>
     </div>
   );
 }

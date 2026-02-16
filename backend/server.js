@@ -2,20 +2,38 @@ const express = require("express");
 const cors = require("cors");
 const mysql = require("mysql2");
 const bcrypt = require("bcrypt");
+const jwt = require("jsonwebtoken");// <-- new
 const http = require("http");
 const { Server } = require("socket.io");
 require("dotenv").config();
 
-// Import new route files
+// Import route files
 const programRoutes = require('./routes/programs');
 const tuteeRoutes = require('./routes/tutees');
-const db = require('./db'); // Import db config
+const tutorRoutes = require('./routes/tutors');
 
 const app = express();
 
 // ============ MIDDLEWARE ============
-app.use(cors());
+app.use(cors({
+    origin: [
+        'http://localhost:5173',
+        'http://127.0.0.1:5173',
+        'http://localhost:5174',
+        'http://localhost:3000',
+        'http://localhost:3001',
+        'http://localhost:5001'
+    ],
+    credentials: true
+}));
+
 app.use(express.json());
+
+// Request logging
+app.use((req, res, next) => {
+    console.log(`[${new Date().toISOString()}] ${req.method} ${req.url}`);
+    next();
+});
 
 // ============ ROOT ROUTE ============
 app.get("/", (req, res) => {
@@ -28,19 +46,24 @@ app.get("/", (req, res) => {
             tutees: "/tutees",
             tutee_courses: "/tutees/:id/courses",
             tutors: "/tutors",
+            tutor_courses: "/tutors/:id/courses",
             signin: "/signin",
-            signup: "/signup",
             admin: "/admin/overview",
-            matches: "/api/matches",
-            test_db: "/test-db"
+            test_db: "/test-db",
+            matches: "/api/matches"
         }
     });
 });
 
 const server = http.createServer(app);
-const io = new Server(server, { cors: { origin: "*" } });
+const io = new Server(server, { 
+    cors: { 
+        origin: ['http://localhost:5173', 'http://127.0.0.1:5173'],
+        credentials: true 
+    } 
+});
 
-// Database connection (keep your existing pool)
+// ============ DATABASE POOL ============
 const pool = mysql
   .createPool({
     host: process.env.DB_HOST,
@@ -57,11 +80,9 @@ const pool = mysql
 const activeSockets = new Map();
 io.on("connection", (socket) => {
   console.log("Socket connected:", socket.id);
-
   socket.on("registerUser", (email) => {
     if (email) activeSockets.set(email, socket.id);
   });
-
   socket.on("disconnect", () => {
     for (const [email, id] of activeSockets.entries()) {
       if (id === socket.id) activeSockets.delete(email);
@@ -69,28 +90,20 @@ io.on("connection", (socket) => {
   });
 });
 
-// Ensure tables exist
+// ============ ENSURE TABLES ============
 async function ensureTables() {
-  await pool.execute(`
-    CREATE TABLE IF NOT EXISTS users (
-      id INT AUTO_INCREMENT PRIMARY KEY,
-      full_name VARCHAR(255),
-      email VARCHAR(255) UNIQUE NOT NULL,
-      password VARCHAR(255) NOT NULL,
-      role ENUM('user','tutor','tutee','admin') DEFAULT 'user',
-      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-    )
-  `);
-
   await pool.execute(`
     CREATE TABLE IF NOT EXISTS tutors (
       id INT AUTO_INCREMENT PRIMARY KEY,
       email VARCHAR(255) UNIQUE NOT NULL,
+      password VARCHAR(255),
       full_name VARCHAR(255),
       id_number VARCHAR(255),
       term VARCHAR(255),
+      program_level ENUM('undergraduate', 'graduate'),
+      program_id INT,
+      selected_courses JSON,
       department VARCHAR(255),
-      units VARCHAR(255),
       created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     )
   `);
@@ -106,6 +119,7 @@ async function ensureTables() {
       program_level ENUM('undergraduate', 'graduate'),
       program_id INT,
       selected_courses JSON,
+      department VARCHAR(255),
       created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     )
   `);
@@ -134,38 +148,20 @@ async function ensureTables() {
       UNIQUE KEY uq_match (tutor_id, tutee_id, unit)
     )
   `);
+  
+  console.log('Database tables ensured');
 }
 ensureTables().catch(console.error);
 
 // ============ ROUTES ============
 app.use('/api', programRoutes);
 app.use('/', tuteeRoutes);
+app.use('/', tutorRoutes);
 
-// ============ FIXED PROGRAM COURSES ENDPOINT ============
+// ============ PROGRAM COURSES ENDPOINT ============
 app.get('/api/programs/:programId/courses', async (req, res) => {
     try {
         const { programId } = req.params;
-        
-        console.log(`Fetching courses for program ID: ${programId}`);
-        
-        // First check if program exists
-        const [programCheck] = await pool.query(
-            "SELECT * FROM programs WHERE id = ?", 
-            [programId]
-        );
-        
-        if (programCheck.length === 0) {
-            return res.status(404).json({ message: 'Program not found' });
-        }
-        
-        // Check if program_courses has data
-        const [linkCheck] = await pool.query(
-            "SELECT COUNT(*) as count FROM program_courses WHERE program_id = ?", 
-            [programId]
-        );
-        console.log(`Found ${linkCheck[0].count} course links`);
-        
-        // Get courses with proper column names
         const [rows] = await pool.query(`
             SELECT 
                 c.id,
@@ -176,257 +172,212 @@ app.get('/api/programs/:programId/courses', async (req, res) => {
             WHERE pc.program_id = ?
             ORDER BY c.\`COL 3\`
         `, [programId]);
-        
-        console.log(`Returning ${rows.length} courses`);
         res.json(rows);
-        
     } catch (error) {
-        console.error('Error in /api/programs/:programId/courses:', error);
-        res.status(500).json({ 
-            message: 'Error fetching courses',
-            error: error.message,
-            sql: error.sql || null
-        });
+        res.status(500).json({ message: 'Error fetching courses', error: error.message });
     }
 });
 
 // Health check
 app.get("/health", (req, res) => {
-  res.json({ status: "ok", time: new Date().toISOString() });
+    res.json({ status: "ok", time: new Date().toISOString() });
 });
 
 // Test database connection
 app.get('/test-db', async (req, res) => {
     try {
         const [rows] = await pool.query('SELECT 1 + 1 AS solution');
-        res.json({ 
-            message: 'Database connected successfully!', 
-            result: rows[0].solution 
-        });
+        res.json({ message: 'Database connected!', result: rows[0].solution });
     } catch (error) {
         res.status(500).json({ message: 'Database connection failed', error: error.message });
     }
 });
 
-// ================= USERS =================
-app.post("/signup", async (req, res) => {
-  try {
-    const { full_name, email, password } = req.body;
-    if (!email || !password) return res.status(400).json({ message: "Email and password required" });
-
-    const hashed = await bcrypt.hash(password, 10);
-    const [result] = await pool.execute(
-      "INSERT INTO users (full_name, email, password, role) VALUES (?, ?, ?, 'user')",
-      [full_name || "", email, hashed]
-    );
-
-    res.status(201).json({ message: "User created successfully", user: { id: result.insertId, full_name, email, role: "user" } });
-  } catch (err) {
-    if (err.code === "ER_DUP_ENTRY") return res.status(400).json({ message: "Email already exists" });
-    res.status(500).json({ message: "Server error", error: String(err) });
-  }
-});
-
+// ============ SIGNIN (TUTORS, TUTEES, AND ADMIN) ============
 app.post("/signin", async (req, res) => {
-  try {
     const { email, password } = req.body;
-    if (!email || !password) return res.status(400).json({ message: "Email and password required" });
+    if (!email || !password) {
+        return res.status(400).json({ success: false, message: "Email and password required" });
+    }
 
-    // Hardcoded admin
+    // 1. Check for the hardcoded admin (optional – you could move admin to a DB table)
     if (email === "admin@usiu.ac.ke" && password === "PACS1234") {
-      return res.json({ message: "Admin login successful", user: { id: 0, full_name: "Administrator", email, role: "admin" } });
+        const token = jwt.sign(
+            { id: 0, email, role: "admin" },
+            process.env.JWT_SECRET,
+            { expiresIn: "1d" }
+        );
+        return res.status(200).json({
+            success: true,
+            message: "Admin login successful",
+            user: { id: 0, full_name: "Administrator", email, role: "admin" },
+            token
+        });
     }
 
-    const [users] = await pool.execute("SELECT id, full_name, email, password, role FROM users WHERE email = ?", [email]);
-    if (!users.length) return res.status(401).json({ message: "Invalid email or password" });
+    try {
+        // 2. Search in tutors table
+        const [tutors] = await pool.execute(
+            "SELECT id, email, password, full_name, 'tutor' as role FROM tutors WHERE email = ?",
+            [email]
+        );
 
-    const user = users[0];
-    const match = await bcrypt.compare(password, user.password);
-    if (!match) return res.status(401).json({ message: "Invalid email or password" });
+        // 3. Search in tutees table
+        const [tutees] = await pool.execute(
+            "SELECT id, email, password, full_name, 'tutee' as role FROM tutees WHERE email = ?",
+            [email]
+        );
 
-    let role = user.role;
-    let full_name = user.full_name || "";
+        const userRecord = tutors[0] || tutees[0];
 
-    if (!role || role === "user") {
-      const [tutorRows] = await pool.execute("SELECT full_name FROM tutors WHERE email = ?", [email]);
-      const [tuteeRows] = await pool.execute("SELECT full_name FROM tutees WHERE email = ?", [email]);
+        if (!userRecord) {
+            return res.status(401).json({ success: false, message: "Invalid email or password" });
+        }
 
-      if (tutorRows.length) { role = "tutor"; full_name = tutorRows[0].full_name; }
-      else if (tuteeRows.length) { role = "tutee"; full_name = tuteeRows[0].full_name; }
-      else { role = "user"; }
+        // 4. Compare password (assumes passwords are hashed with bcrypt)
+        const passwordMatch = await bcrypt.compare(password, userRecord.password);
+        if (!passwordMatch) {
+            return res.status(401).json({ success: false, message: "Invalid email or password" });
+        }
 
-      await pool.execute("UPDATE users SET role = ?, full_name = ? WHERE email = ?", [role, full_name, email]);
+        // 5. Remove password from user object
+        const { password: _, ...userWithoutPassword } = userRecord;
+
+        // 6. Generate JWT token
+        const token = jwt.sign(
+            { id: userRecord.id, email: userRecord.email, role: userRecord.role },
+            process.env.JWT_SECRET,
+            { expiresIn: "1d" }
+        );
+
+        // 7. Send response
+        res.status(200).json({
+            success: true,
+            message: "Login successful",
+            user: userWithoutPassword,
+            token
+        });
+
+    } catch (error) {
+        console.error("Signin error:", error);
+        res.status(500).json({ success: false, message: "Internal server error" });
     }
-
-    res.json({ message: "Login successful", user: { id: user.id, full_name, email, role } });
-  } catch (err) {
-    res.status(500).json({ message: "Server error", error: String(err) });
-  }
 });
 
-// ================= ADMIN OVERVIEW =================
+// ============ ADMIN OVERVIEW (ONLY TUTORS & TUTEES) ============
 app.get("/admin/overview", async (req, res) => {
-  try {
-    const [users] = await pool.execute(`
-      SELECT u.id, COALESCE(u.full_name, t.full_name, te.full_name, 'N/A') AS full_name, u.email, u.role, u.created_at
-      FROM users u
-      LEFT JOIN tutors t ON u.email = t.email
-      LEFT JOIN tutees te ON u.email = te.email
-      ORDER BY u.created_at DESC
-    `);
+    try {
+        // 1. Fetch all tutors
+        const [tutors] = await pool.execute(`
+            SELECT 
+                id, 
+                email, 
+                COALESCE(full_name, 'N/A') AS name, 
+                COALESCE(id_number, 'N/A') AS id_number, 
+                COALESCE(term, 'N/A') AS term, 
+                COALESCE(department, 'N/A') AS department,
+                created_at
+            FROM tutors 
+            ORDER BY created_at DESC
+        `);
 
-    const [tutors] = await pool.execute(`
-      SELECT id, email, COALESCE(full_name, 'N/A') AS name, id_number, term, department, COALESCE(units, '-') AS units, created_at
-      FROM tutors ORDER BY created_at DESC
-    `);
+        // 2. Fetch all tutees
+        const [tutees] = await pool.execute(`
+            SELECT 
+                id, 
+                email, 
+                COALESCE(full_name, 'N/A') AS name, 
+                COALESCE(id_number, 'N/A') AS id_number, 
+                COALESCE(term, 'N/A') AS term, 
+                COALESCE(department, 'N/A') AS department,
+                created_at
+            FROM tutees 
+            ORDER BY created_at DESC
+        `);
 
-    const [tutees] = await pool.execute(`
-      SELECT id, email, COALESCE(full_name, 'N/A') AS name, id_number, term, department, COALESCE(units, '-') AS units, created_at
-      FROM tutees ORDER BY created_at DESC
-    `);
+        // 3. Enrich tutors with their selected courses (as unit codes)
+        const tutorsWithUnits = await Promise.all(tutors.map(async (tutor) => {
+            const [courseRows] = await pool.execute(
+                "SELECT selected_courses FROM tutors WHERE id = ?",
+                [tutor.id]
+            );
+            let units = '';
+            if (courseRows.length && courseRows[0].selected_courses) {
+                const courseIds = JSON.parse(courseRows[0].selected_courses);
+                if (courseIds.length > 0) {
+                    const [courses] = await pool.query(`
+                        SELECT \`COL 2\` as unit_code 
+                        FROM courses_1 
+                        WHERE id IN (?)
+                    `, [courseIds]);
+                    units = courses.map(c => c.unit_code).join(', ');
+                }
+            }
+            return { ...tutor, units: units || 'N/A' };
+        }));
 
-    res.json({ summary: { total_users: users.length, tutors: tutors.length, tutees: tutees.length }, users, tutors, tutees });
-  } catch (err) {
-    res.status(500).json({ message: "Server error", error: String(err) });
-  }
+        // 4. Enrich tutees with their selected courses
+        const tuteesWithUnits = await Promise.all(tutees.map(async (tutee) => {
+            const [courseRows] = await pool.execute(
+                "SELECT selected_courses FROM tutees WHERE id = ?",
+                [tutee.id]
+            );
+            let units = '';
+            if (courseRows.length && courseRows[0].selected_courses) {
+                const courseIds = JSON.parse(courseRows[0].selected_courses);
+                if (courseIds.length > 0) {
+                    const [courses] = await pool.query(`
+                        SELECT \`COL 2\` as unit_code 
+                        FROM courses_1 
+                        WHERE id IN (?)
+                    `, [courseIds]);
+                    units = courses.map(c => c.unit_code).join(', ');
+                }
+            }
+            return { ...tutee, units: units || 'N/A' };
+        }));
+
+        // 5. Response
+        res.json({
+            summary: {
+                total_users: tutorsWithUnits.length + tuteesWithUnits.length,
+                tutors: tutorsWithUnits.length,
+                tutees: tuteesWithUnits.length
+            },
+            tutors: tutorsWithUnits,
+            tutees: tuteesWithUnits
+        });
+
+    } catch (err) {
+        console.error('Admin overview error:', err);
+        res.status(500).json({ message: "Server error", error: String(err) });
+    }
 });
 
-// ================= TUTOR REGISTRATION =================
-app.post("/tutors", async (req, res) => {
-  try {
-    const { email, name, idNumber, term, department, selectedUnits } = req.body;
-    if (!email || !name || !idNumber || !department) return res.status(400).json({ message: "Missing required fields" });
-
-    const unitsString = Array.isArray(selectedUnits) ? selectedUnits.join(", ") : selectedUnits || "";
-
-    const [result] = await pool.execute(
-      "INSERT INTO tutors (email, full_name, id_number, term, department, units) VALUES (?, ?, ?, ?, ?, ?)",
-      [email, name, idNumber, term, department, unitsString]
-    );
-
-    await pool.execute("UPDATE users SET role = 'tutor', full_name = ? WHERE email = ?", [name, email]);
-
-    res.status(201).json({ message: "Tutor registered successfully", tutorId: result.insertId });
-  } catch (err) {
-    res.status(500).json({ message: "Server error", error: String(err) });
-  }
+// ============ MATCHES PLACEHOLDER ============
+app.get("/api/matches", (req, res) => {
+    res.json([]);
 });
 
-// ================= MATCHING ENDPOINTS =================
-app.get("/api/tutor/suggestions/:tutorId", async (req, res) => {
-  try {
-    const tutorId = req.params.tutorId;
-    const [tutorRows] = await pool.execute("SELECT email, department, units FROM tutors WHERE id = ?", [tutorId]);
-    if (!tutorRows.length) return res.status(404).json({ message: "Tutor not found" });
-
-    const tutor = tutorRows[0];
-    const [suggestions] = await pool.execute(`
-      SELECT te.id AS tutee_id, te.full_name, te.units, te.email
-      FROM tutees te
-      WHERE te.department = ?
-      AND (
-        FIND_IN_SET(SUBSTRING_INDEX(te.units, ',', 1), ?) > 0
-        OR FIND_IN_SET(SUBSTRING_INDEX(te.units, ',', -1), ?) > 0
-      )
-      AND te.email NOT IN (SELECT tutee_email FROM match_requests WHERE tutor_email = ? AND status = 'pending')
-    `, [tutor.department, tutor.units, tutor.units, tutor.email]);
-
-    res.json(suggestions);
-  } catch (err) {
-    res.status(500).json({ message: "Failed to fetch suggestions" });
-  }
+// 404 handler
+app.use((req, res) => {
+    res.status(404).json({ success: false, message: `Route not found: ${req.method} ${req.url}` });
 });
 
-app.post("/api/match-request", async (req, res) => {
-  try {
-    const { tutorEmail, tuteeEmail, unit, mode } = req.body;
-    if (!tutorEmail || !tuteeEmail || !unit || !mode) return res.status(400).json({ message: "Missing fields" });
-
-    await pool.execute(
-      "INSERT INTO match_requests (tutor_email, tutee_email, unit, status, mode) VALUES (?, ?, ?, 'pending', ?)",
-      [tutorEmail, tuteeEmail, unit, mode]
-    );
-
-    res.json({ message: "Match request sent" });
-  } catch (err) {
-    res.status(500).json({ message: "Failed to send request" });
-  }
+// Error handler
+app.use((err, req, res, next) => {
+    console.error('Server error:', err);
+    res.status(500).json({ success: false, message: 'Internal server error' });
 });
 
-app.get("/api/tutee/requests/:tuteeEmail", async (req, res) => {
-  try {
-    const tuteeEmail = req.params.tuteeEmail;
-    const [requests] = await pool.execute(
-      "SELECT id, tutor_email, unit, mode, created_at FROM match_requests WHERE tutee_email = ? AND status = 'pending'",
-      [tuteeEmail]
-    );
-    res.json(requests);
-  } catch (err) {
-    res.status(500).json({ message: "Failed to fetch requests" });
-  }
-});
-
-app.post("/api/match-request/:id/accept", async (req, res) => {
-  const requestId = req.params.id;
-  const conn = await pool.getConnection();
-  try {
-    await conn.beginTransaction();
-
-    const [requestRows] = await conn.execute("SELECT * FROM match_requests WHERE id = ?", [requestId]);
-    if (!requestRows.length) { await conn.rollback(); return res.status(404).json({ message: "Request not found" }); }
-    const request = requestRows[0];
-
-    await conn.execute("UPDATE match_requests SET status = 'accepted' WHERE id = ?", [requestId]);
-
-    const [tutorRows] = await conn.execute("SELECT id FROM tutors WHERE email = ?", [request.tutor_email]);
-    const [tuteeRows] = await conn.execute("SELECT id FROM tutees WHERE email = ?", [request.tutee_email]);
-    if (!tutorRows.length || !tuteeRows.length) { await conn.rollback(); return res.status(404).json({ message: "Tutor or Tutee not found" }); }
-
-    await conn.execute(
-      "INSERT INTO matches (tutor_id, tutee_id, unit, status, mode, created_at) VALUES (?, ?, ?, 'accepted', ?, NOW())",
-      [tutorRows[0].id, tuteeRows[0].id, request.unit, request.mode]
-    );
-
-    await conn.commit();
-    res.json({ message: "Match accepted and confirmed" });
-  } catch (err) {
-    await conn.rollback();
-    res.status(500).json({ message: "Failed to accept match" });
-  } finally {
-    conn.release();
-  }
-});
-
-app.post("/api/match-request/:id/reject", async (req, res) => {
-  try {
-    const requestId = req.params.id;
-    await pool.execute("UPDATE match_requests SET status = 'rejected' WHERE id = ?", [requestId]);
-    res.json({ message: "Match request rejected" });
-  } catch (err) {
-    res.status(500).json({ message: "Failed to reject request" });
-  }
-});
-
-app.get("/api/matches", async (req, res) => {
-  try {
-    const { email } = req.query;
-    if (!email) return res.status(400).json({ message: "Email required" });
-
-    const [matches] = await pool.execute(`
-      SELECT m.id AS match_id, t.full_name AS tutor_name, te.full_name AS tutee_name, m.unit, m.mode, m.status, m.created_at
-      FROM matches m
-      LEFT JOIN tutors t ON m.tutor_id = t.id
-      LEFT JOIN tutees te ON m.tutee_id = te.id
-      WHERE t.email = ? OR te.email = ?
-      ORDER BY m.created_at DESC
-    `, [email, email]);
-
-    res.json(matches);
-  } catch (err) {
-    res.status(500).json({ message: "Failed to fetch matches" });
-  }
-});
-
-// Start server
+// ============ START SERVER ============
 const PORT = 5001;
-server.listen(PORT, () => console.log(`Server running at http://localhost:${PORT}`));
+server.listen(PORT, '0.0.0.0', () => {
+    console.log('='.repeat(60));
+    console.log('Server Status: RUNNING');
+    console.log(`Backend Server:   http://localhost:${PORT}`);
+    console.log(`Frontend (Vite):  http://localhost:5173`);
+    console.log('='.repeat(60));
+    console.log('Admin Login:  admin@usiu.ac.ke / PACS1234');
+    console.log('='.repeat(60));
+});

@@ -30,7 +30,7 @@ export default function LoggedIn() {
 
   const userName = capitalizeFirst(userEmail.split("@")[0]);
 
-  //  Socket.io connection setup
+  // Socket.io connection setup
   useEffect(() => {
     if (!userEmail) return;
 
@@ -56,20 +56,35 @@ export default function LoggedIn() {
     navigate("/");
   };
 
-  
+  // Navigation handlers with fallback
+  const goToTutor = () => {
+    console.log("Attempting to navigate to /tutor");
+    try {
+      navigate("/tutor");
+    } catch (err) {
+      console.warn("navigate failed, using fallback", err);
+      window.location.href = "/tutor";
+    }
+  };
+
+  const goToTutee = () => {
+    console.log("Attempting to navigate to /tutee");
+    try {
+      navigate("/tutee");
+    } catch (err) {
+      console.warn("navigate failed, using fallback", err);
+      window.location.href = "/tutee";
+    }
+  };
+
   return (
     <div className="dashboard-bg">
       <header className="dashboard-header">
         <div className="dashboard-logo">PeerBridge</div>
 
-        {/*  Buttons aligned to top-right */}
         <div className="header-buttons">
-          {/*<button className="matches-btn" onClick={handleViewMatches}>
-            View Matches
-          </button>
-          */}
           <button className="signout-btn" onClick={handleSignOut}>
-            back 
+            Back
           </button>
         </div>
       </header>
@@ -81,13 +96,12 @@ export default function LoggedIn() {
         <h2>Choose your role</h2>
 
         <div className="role-selection">
-          <div className="role-card tutor" onClick={() => navigate("/tutor")}>
+          <div className="role-card tutor" onClick={goToTutor}>
             <h3>Tutor</h3>
           </div>
-          <div className="role-card tutee" onClick={() => navigate("/tutee")}>
+          <div className="role-card tutee" onClick={goToTutee}>
             <h3>Tutee</h3>
           </div>
-          
         </div>
       </div>
 

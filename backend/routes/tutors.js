@@ -3,8 +3,8 @@ const router = express.Router();
 const pool = require('../db');
 const bcrypt = require('bcrypt');
 
-// Register tutee with password and multiple courses
-router.post('/tutees', async (req, res) => {
+// Register tutor with password and multiple courses
+router.post('/tutors', async (req, res) => {
     const connection = await pool.getConnection();
     
     try {
@@ -15,15 +15,16 @@ router.post('/tutees', async (req, res) => {
             password, 
             name, 
             idNumber, 
+            term, 
             program_level,
             program_id,
             selected_courses,
-            term,
             department
         } = req.body;
         
         // Debug log
-        console.log('Registering tutee with department:', department);
+        console.log('Registering tutor with department:', department);
+        console.log('Selected courses:', selected_courses);
         
         // Validate max 2 courses
         if (!selected_courses || selected_courses.length > 2 || selected_courses.length === 0) {
@@ -35,12 +36,12 @@ router.post('/tutees', async (req, res) => {
         // Hash password
         const hashedPassword = await bcrypt.hash(password, 10);
         
-        // Convert courses array to JSON
+        // Convert courses array to JSON string
         const coursesJson = JSON.stringify(selected_courses);
         
-        // Check if tutee already exists
+        // Check if tutor already exists
         const [existing] = await connection.query(
-            "SELECT id FROM tutees WHERE email = ?", [email]
+            "SELECT id FROM tutors WHERE email = ?", [email]
         );
         
         if (existing.length > 0) {
@@ -48,67 +49,67 @@ router.post('/tutees', async (req, res) => {
             return res.status(400).json({ message: 'Email already registered' });
         }
         
-        // FIXED: Added department to INSERT query (9 placeholders, 9 values)
+        // Insert tutor with department and selected_courses as JSON
         const [result] = await connection.query(`
-            INSERT INTO tutees 
-            (email, password, full_name, id_number, program_level, program_id, selected_courses, term, department) 
+            INSERT INTO tutors 
+            (email, password, full_name, id_number, term, program_level, program_id, selected_courses, department) 
             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
         `, [
             email, 
             hashedPassword, 
             name, 
             idNumber, 
+            term, 
             program_level, 
             program_id, 
-            coursesJson, 
-            term,
-            department  // Now properly mapped to the 9th placeholder
+            coursesJson,
+            department
         ]);
 
         // Update users table
         await connection.query(
-            "UPDATE users SET role = 'tutee', full_name = ? WHERE email = ?",
+            "UPDATE users SET role = 'tutor', full_name = ? WHERE email = ?",
             [name, email]
         );
                         
         await connection.commit();
         
         res.status(201).json({ 
-            message: 'Tutee registered successfully!',
-            tuteeId: result.insertId 
+            message: 'Tutor registered successfully!',
+            tutorId: result.insertId 
         });
         
     } catch (error) {
         await connection.rollback();
-        console.error('Error registering tutee:', error);
+        console.error('Error registering tutor:', error);
         
         if (error.code === 'ER_DUP_ENTRY') {
             return res.status(400).json({ message: 'Email already exists' });
         }
         
-        res.status(500).json({ message: 'Error registering tutee' });
+        res.status(500).json({ message: 'Error registering tutor' });
     } finally {
         connection.release();
     }
 });
 
-// Get tutee's registered courses
-router.get('/tutees/:id/courses', async (req, res) => {
+// Get tutor's registered courses
+router.get('/tutors/:id/courses', async (req, res) => {
     try {
         const { id } = req.params;
         
         const [rows] = await pool.query(`
             SELECT selected_courses, program_id, full_name, department 
-            FROM tutees 
+            FROM tutors 
             WHERE id = ?
         `, [id]);
         
         if (rows.length === 0) {
-            return res.status(404).json({ message: 'Tutee not found' });
+            return res.status(404).json({ message: 'Tutor not found' });
         }
         
-        const tutee = rows[0];
-        const courseIds = JSON.parse(tutee.selected_courses || '[]');
+        const tutor = rows[0];
+        const courseIds = JSON.parse(tutor.selected_courses || '[]');
         
         if (courseIds.length === 0) {
             return res.json([]);
@@ -126,7 +127,7 @@ router.get('/tutees/:id/courses', async (req, res) => {
         res.json(courses);
         
     } catch (error) {
-        console.error('Error fetching tutee courses:', error);
+        console.error('Error fetching tutor courses:', error);
         res.status(500).json({ message: 'Error fetching courses' });
     }
 });

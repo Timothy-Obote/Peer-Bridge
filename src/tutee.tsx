@@ -16,7 +16,8 @@ const Tutee: React.FC = () => {
         program_level: "",
         program_id: "",
         selected_courses: [],
-        term: "FS"
+        term: "FS",
+        department: ""
     });
 
     // UI state
@@ -65,7 +66,18 @@ const Tutee: React.FC = () => {
         try {
             const courses = await tuteeService.fetchProgramCourses(programId);
             setAvailableCourses(courses);
-            setFormData(prev => ({ ...prev, selected_courses: [] }));
+            
+            // Get selected program name and set as department
+            const allPrograms = [...programs.undergraduate, ...programs.graduate];
+            const selectedProgram = allPrograms.find(p => p.id === programId);
+            
+            setFormData(prev => ({ 
+                ...prev, 
+                selected_courses: [],
+                department: selectedProgram?.program_name || "" // Set department from program name
+            }));
+            
+            console.log("Department set to:", selectedProgram?.program_name); // Debug log
         } catch (error) {
             showStatus("error", "Failed to load courses for this program.");
             console.error("Error fetching courses:", error);
@@ -84,9 +96,17 @@ const Tutee: React.FC = () => {
             setFormData(prev => ({ 
                 ...prev, 
                 program_id: "",
-                selected_courses: [] 
+                selected_courses: [],
+                department: "" // Clear department when program level changes
             }));
             setAvailableCourses([]);
+        }
+        
+        if (name === "program_id" && !value) {
+            setFormData(prev => ({ 
+                ...prev, 
+                department: "" // Clear department if program is cleared
+            }));
         }
     };
 
@@ -128,6 +148,9 @@ const Tutee: React.FC = () => {
             return;
         }
 
+        // Debug log before submit
+        console.log("Submitting registration with department:", formData.department);
+
         setLoading(prev => ({ ...prev, submit: true }));
         showStatus("info", "Processing registration...");
 
@@ -143,7 +166,8 @@ const Tutee: React.FC = () => {
                 program_level: "",
                 program_id: "",
                 selected_courses: [],
-                term: "FS"
+                term: "FS",
+                department: ""
             });
             setAvailableCourses([]);
 
@@ -334,6 +358,10 @@ const Tutee: React.FC = () => {
                                          formData.term === 'SS' ? 'Summer Semester' : 'Spring Semester'}
                                     </span>
                                 </div>
+                                <div className="program-info-row">
+                                    <span className="info-label">Department:</span>
+                                    <span className="info-value">{formData.department || getSelectedProgramName()}</span>
+                                </div>
                                 <div className="program-info-row highlight">
                                     <span className="info-label">Course Load:</span>
                                     <span className="info-value">
@@ -425,6 +453,7 @@ const Tutee: React.FC = () => {
                                 loading.courses
                             }
                             className={`submit-button ${loading.submit ? 'submitting' : ''}`}
+                            style={{ backgroundColor: '#FFC800', color: '#000000' }}
                         >
                             {loading.submit ? (
                                 <>
@@ -433,7 +462,6 @@ const Tutee: React.FC = () => {
                                 </>
                             ) : (
                                 <>
-                                    <span className="button-icon"></span>
                                     Submit Registration
                                 </>
                             )}

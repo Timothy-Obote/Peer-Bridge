@@ -2,14 +2,6 @@ import React, { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import "./admin.css";
 
-interface User {
-  id: number;
-  full_name: string;
-  email: string;
-  role: string;
-  created_at: string;
-}
-
 interface Tutor {
   id: number;
   name: string;
@@ -41,7 +33,6 @@ interface Summary {
 const AdminDashboard: React.FC = () => {
   const navigate = useNavigate();
   const [summary, setSummary] = useState<Summary | null>(null);
-  const [users, setUsers] = useState<User[]>([]);
   const [tutors, setTutors] = useState<Tutor[]>([]);
   const [tutees, setTutees] = useState<Tutee[]>([]);
   const [loading, setLoading] = useState(true);
@@ -56,11 +47,10 @@ const AdminDashboard: React.FC = () => {
   useEffect(() => {
     const fetchOverview = async () => {
       try {
-        const res = await fetch("http://localhost:5000/admin/overview");
+        const res = await fetch("http://localhost:5001/admin/overview");
         if (!res.ok) throw new Error("Failed to fetch overview data");
         const data = await res.json();
         setSummary(data.summary);
-        setUsers(data.users);
         setTutors(data.tutors || []);
         setTutees(data.tutees || []);
       } catch (err: any) {
@@ -127,7 +117,6 @@ const AdminDashboard: React.FC = () => {
           <section>
             <h1>Welcome, {adminInfo.name}</h1>
             <p className="subtitle">Overview of PACS Platform Activity</p>
-
             {summary && (
               <div className="summary-cards">
                 <div className="summary-card">
@@ -150,33 +139,7 @@ const AdminDashboard: React.FC = () => {
         {activeSection === "users" && (
           <section className="user-section">
             <h2>User Management</h2>
-            <p>Manage all registered users, tutors, and tutees below.</p>
-
-            <h3>Registered Users</h3>
-            <div className="table-container">
-              <table className="user-table">
-                <thead>
-                  <tr>
-                    <th>ID</th>
-                    <th>Full Name</th>
-                    <th>Email</th>
-                    <th>Role</th>
-                    <th>Created At</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {users.map((user) => (
-                    <tr key={user.id}>
-                      <td>{user.id}</td>
-                      <td>{user.full_name || "N/A"}</td>
-                      <td>{user.email}</td>
-                      <td>{user.role}</td>
-                      <td>{new Date(user.created_at).toLocaleString()}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+            <p>Manage all registered tutors and tutees below.</p>
 
             <h3>Registered Tutors</h3>
             <div className="table-container">

@@ -1,8 +1,8 @@
-import type { ProgramGroup, Course, TuteeRegistrationData } from '../types/course.types';
+import type { ProgramGroup, Course, TutorRegistrationData } from '../types/course.types';
 
 const API_BASE = 'http://localhost:5001/api';
 
-export const tuteeService = {
+export const tutorService = {
     // Fetch all programs
     async fetchPrograms(): Promise<ProgramGroup> {
         console.log('Fetching programs...');
@@ -19,17 +19,13 @@ export const tuteeService = {
         return response.json();
     },
 
-    // Register tutee
-    async registerTutee(data: TuteeRegistrationData) {
-        // Debug logs
-        console.log('Registration Payload:');
+    // Register tutor
+    async registerTutor(data: TutorRegistrationData) {
+        console.log('Tutor Registration Payload:');
         console.log('Email:', data.email);
         console.log('Name:', data.name);
-        console.log('ID Number:', data.idNumber);
-        console.log('Program Level:', data.program_level);
         console.log('Program ID:', data.program_id);
         console.log('Selected Courses:', data.selected_courses);
-        console.log('Term:', data.term);
         console.log('Department:', data.department);
 
         const payload = {
@@ -37,14 +33,14 @@ export const tuteeService = {
             password: data.password,
             name: data.name,
             idNumber: data.idNumber,
+            term: data.term,
             program_level: data.program_level,
             program_id: data.program_id,
             selected_courses: data.selected_courses,
-            term: data.term,
             department: data.department
         };
 
-        const response = await fetch('http://localhost:5001/tutees', {
+        const response = await fetch('http://localhost:5001/tutors', {
             method: 'POST',
             headers: { 
                 'Content-Type': 'application/json'

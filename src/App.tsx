@@ -1,5 +1,5 @@
 import "./App.css";
-import SignInForm from "./SignInForm";
+import SignIn from "./SignInForm";               // new page component
 import LoggedIn from "./LoggedIn";
 import Tutor from "./tutor";
 import Tutee from "./tutee";
@@ -7,20 +7,20 @@ import TutorDashboard from "./TutorDashboard";
 import TuteeDashboard from "./TuteeDashboard";
 import AdminDashboard from "./Admin";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import {
   BrowserRouter as Router,
   Routes,
   Route,
-  useNavigate,
+  Navigate,
+  useNavigate,          // ← added missing import
 } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 
 // ---------------- HOME COMPONENT ----------------
 function Home() {
-  const [showSignIn, setShowSignIn] = useState(false);
   const [hovered, setHovered] = useState<string | null>(null);
-  const navigate = useNavigate();
+  const navigate = useNavigate();               // ← added
 
   const previews: Record<string, string> = {
     Learn: "Access tutorials, study resources, and tips shared by top-performing peers.",
@@ -30,15 +30,32 @@ function Home() {
       "Join study groups, mentorship programs, and peer-driven Q&A forums to grow together.",
   };
 
-  // When user clicks Sign Up → go to LoggedIn.tsx to pick role
+  // Navigate to sign-up page (role selection)
   const handleSignUpClick = () => {
     navigate("/dashboard");
   };
 
-  // When user clicks Sign In → open SignInForm modal
+  // Navigate to sign-in page (instead of opening modal)
   const handleSignInClick = () => {
-    setShowSignIn(true);
+    navigate("/signin");
   };
+
+  // Check if user is already logged in (auto-redirect)
+  useEffect(() => {
+    const user = localStorage.getItem('user');
+    if (user) {
+      try {
+        const userData = JSON.parse(user);
+        const role = userData?.role;
+        if (role === 'admin') window.location.href = '/admin-dashboard';
+        else if (role === 'tutor') window.location.href = '/tutor-dashboard';
+        else if (role === 'tutee') window.location.href = '/tutee-dashboard';
+        else window.location.href = '/dashboard';
+      } catch (e) {
+        localStorage.removeItem('user');
+      }
+    }
+  }, []);
 
   return (
     <div className="app-container">
@@ -46,7 +63,6 @@ function Home() {
       <header className="header relative">
         <div className="logo">PeerBridge</div>
 
-        {/* Navigation */}
         <nav className="main-nav">
           {Object.keys(previews).map((item) => (
             <a
@@ -60,7 +76,6 @@ function Home() {
           ))}
         </nav>
 
-        {/* Hover preview */}
         <AnimatePresence>
           {hovered && (
             <motion.div
@@ -76,7 +91,6 @@ function Home() {
           )}
         </AnimatePresence>
 
-        {/* Auth Buttons */}
         <div className="auth-buttons">
           <button className="sign-in" onClick={handleSignInClick}>
             Sign In
@@ -87,7 +101,6 @@ function Home() {
         </div>
       </header>
 
-      {/* Body */}
       <main className="main-bg">
         <div className="main-content">
           <h1>Placement And Career Services</h1>
@@ -99,7 +112,6 @@ function Home() {
         <div className="main-image"></div>
       </main>
 
-      {/* Scrollable Sections */}
       <motion.section
         id="Learn"
         className="section learn-section"
@@ -144,15 +156,43 @@ function Home() {
         </p>
       </motion.section>
 
-      {/* Footer */}
       <footer className="footer">
         <p>© {new Date().getFullYear()} PeerBridge · Connecting Students at USIU Africa</p>
       </footer>
 
-      {/* Sign In Modal — just closes itself after redirect */}
-      {showSignIn && <SignInForm onClose={() => setShowSignIn(false)} />}
+      {/* Modal removed – sign-in is now a separate page */}
     </div>
   );
+}
+
+// ---------------- PROTECTED ROUTE COMPONENT ----------------
+interface ProtectedRouteProps {
+  children: React.ReactNode;
+  allowedRoles?: string[];
+}
+
+function ProtectedRoute({ children, allowedRoles }: ProtectedRouteProps) {
+  const user = localStorage.getItem('user');
+  
+  if (!user) {
+    return <Navigate to="/signin" replace />;   // redirect to signin, not home
+  }
+  
+  try {
+    const userData = JSON.parse(user);
+    
+    if (allowedRoles && !allowedRoles.includes(userData.role)) {
+      if (userData.role === 'admin') return <Navigate to="/admin-dashboard" replace />;
+      if (userData.role === 'tutor') return <Navigate to="/tutor-dashboard" replace />;
+      if (userData.role === 'tutee') return <Navigate to="/tutee-dashboard" replace />;
+      return <Navigate to="/dashboard" replace />;
+    }
+    
+    return <>{children}</>;
+  } catch (e) {
+    localStorage.removeItem('user');
+    return <Navigate to="/signin" replace />;
+  }
 }
 
 // ---------------- APP COMPONENT ----------------
@@ -160,19 +200,43 @@ export default function App() {
   return (
     <Router>
       <Routes>
+        {/* Public routes */}
         <Route path="/" element={<Home />} />
-
-        {/* After signing up → choose role */}
+        <Route path="/signin" element={<SignIn />} />          {/* new sign-in page */}
         <Route path="/dashboard" element={<LoggedIn />} />
 
-        {/* Role registration */}
+        {/* Registration forms – public (no protection) */}
         <Route path="/tutor" element={<Tutor />} />
         <Route path="/tutee" element={<Tutee />} />
 
-        {/* Dashboards */}
-        <Route path="/admin-dashboard" element={<AdminDashboard />} />
-        <Route path="/tutor-dashboard" element={<TutorDashboard />} />
-        <Route path="/tutee-dashboard" element={<TuteeDashboard />} />
+        {/* Dashboards – protected */}
+        <Route
+          path="/admin-dashboard"
+          element={
+            <ProtectedRoute allowedRoles={['admin']}>
+              <AdminDashboard />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/tutor-dashboard"
+          element={
+            <ProtectedRoute allowedRoles={['tutor', 'admin']}>
+              <TutorDashboard />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/tutee-dashboard"
+          element={
+            <ProtectedRoute allowedRoles={['tutee', 'admin']}>
+              <TuteeDashboard />
+            </ProtectedRoute>
+          }
+        />
+
+        {/* Catch all */}
+        <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
     </Router>
   );

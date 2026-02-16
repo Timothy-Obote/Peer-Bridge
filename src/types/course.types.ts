@@ -26,6 +26,20 @@ export interface TuteeRegistrationData {
     program_id: number | '';
     selected_courses: number[];
     term: 'FS' | 'SS' | 'US';
+    department: string;
+}
+
+// ADD THIS - Tutor Registration Data
+export interface TutorRegistrationData {
+    email: string;
+    password: string;
+    name: string;
+    idNumber: string;
+    term: 'FS' | 'SS' | 'US';
+    program_level: 'undergraduate' | 'graduate' | '';
+    program_id: number | '';
+    selected_courses: number[];
+    department: string;
 }
 
 export type TermOption = 'FS' | 'SS' | 'US';
