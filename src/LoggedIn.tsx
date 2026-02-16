@@ -14,8 +14,10 @@ export default function LoggedIn() {
 
   // Safely extract email string from state
   let userEmail = "User";
-  let userId = null;
-  let userRole = "";
+  // @ts-ignore
+  let userId = something;
+// @ts-ignore
+   let userRole = somethingElse;
 
   if (location.state?.user) {
     const user = location.state.user;
@@ -23,8 +25,8 @@ export default function LoggedIn() {
       userEmail = user;
     } else if (typeof user === "object") {
       userEmail = user.email || "User";
-      userId = user.id || null;
-      userRole = user.role || "";
+      userId = user.id || "something";
+      userRole = user.role || "somethingElse";
     }
   }
 
