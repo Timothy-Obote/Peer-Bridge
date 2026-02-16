@@ -12,11 +12,8 @@ export default function LoggedIn() {
   const location = useLocation();
   const navigate = useNavigate();
 
-
   // Safely extract email string from state
   let userEmail = "User";
-  let userId = "";
-   let userRole = "";
 
   if (location.state?.user) {
     const user = location.state.user;
@@ -24,8 +21,7 @@ export default function LoggedIn() {
       userEmail = user;
     } else if (typeof user === "object") {
       userEmail = user.email || "User";
-      userId = user.id || "";
-      userRole = user.role || "";
+      // Removed unused userId and userRole
     }
   }
 
