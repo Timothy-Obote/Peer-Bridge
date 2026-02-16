@@ -16,7 +16,7 @@ export default function SignIn() {
     setErrorMessage("");
 
     try {
-      const res = await fetch("http://localhost:5001/signin", {
+      const res = await fetch(`${import.meta.env.VITE_API_URL}/signin`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email, password }),
@@ -35,7 +35,7 @@ export default function SignIn() {
 
       const role = data.user?.role;
       // Redirect based on role
-      if (role === "admin") window.location.href = "/admin-dashboard";
+      if (role === "admin") navigate("/admin-dashboard");
       else if (role === "tutor") window.location.href = "/tutor-dashboard";
       else if (role === "tutee") window.location.href = "/tutee-dashboard";
       else window.location.href = "/dashboard";

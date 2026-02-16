@@ -13,14 +13,14 @@ import {
   Routes,
   Route,
   Navigate,
-  useNavigate,          // ← added missing import
+  useNavigate,
 } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 
 // ---------------- HOME COMPONENT ----------------
 function Home() {
   const [hovered, setHovered] = useState<string | null>(null);
-  const navigate = useNavigate();               // ← added
+  const navigate = useNavigate();
 
   const previews: Record<string, string> = {
     Learn: "Access tutorials, study resources, and tips shared by top-performing peers.",
@@ -47,15 +47,22 @@ function Home() {
       try {
         const userData = JSON.parse(user);
         const role = userData?.role;
-        if (role === 'admin') window.location.href = '/admin-dashboard';
-        else if (role === 'tutor') window.location.href = '/tutor-dashboard';
-        else if (role === 'tutee') window.location.href = '/tutee-dashboard';
-        else window.location.href = '/dashboard';
+        
+        // FIXED: Use navigate instead of window.location.href
+        if (role === 'admin') {
+          navigate('/admin-dashboard', { replace: true });
+        } else if (role === 'tutor') {
+          navigate('/tutor-dashboard', { replace: true });
+        } else if (role === 'tutee') {
+          navigate('/tutee-dashboard', { replace: true });
+        } else {
+          navigate('/dashboard', { replace: true });
+        }
       } catch (e) {
         localStorage.removeItem('user');
       }
     }
-  }, []);
+  }, [navigate]); // Added navigate to dependencies
 
   return (
     <div className="app-container">
@@ -159,8 +166,6 @@ function Home() {
       <footer className="footer">
         <p>© {new Date().getFullYear()} PeerBridge · Connecting Students at USIU Africa</p>
       </footer>
-
-      {/* Modal removed – sign-in is now a separate page */}
     </div>
   );
 }

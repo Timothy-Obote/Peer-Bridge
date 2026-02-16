@@ -47,7 +47,7 @@ const AdminDashboard: React.FC = () => {
   useEffect(() => {
     const fetchOverview = async () => {
       try {
-        const res = await fetch("http://localhost:5001/admin/overview");
+        const res = await fetch(`${import.meta.env.VITE_API_URL}/admin/overview`);
         if (!res.ok) throw new Error("Failed to fetch overview data");
         const data = await res.json();
         setSummary(data.summary);

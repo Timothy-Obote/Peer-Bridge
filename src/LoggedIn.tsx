@@ -1,6 +1,6 @@
 import { useLocation, useNavigate } from "react-router-dom";
-import { useEffect } from "react";
-import { io } from "socket.io-client";
+import { useEffect, useState } from "react";
+import { io, Socket } from "socket.io-client";
 import "./LoggedIn.css";
 
 function capitalizeFirst(str: string) {
@@ -11,6 +11,15 @@ function capitalizeFirst(str: string) {
 export default function LoggedIn() {
   const location = useLocation();
   const navigate = useNavigate();
+  const [socket, setSocket] = useState<Socket | null>(null);
+
+  // Get backend URL from environment variable or use default
+  // For Vite: import.meta.env.VITE_API_URL
+  // For Create React App: process.env.REACT_APP_API_URL
+  const API_URL = import.meta.env.VITE_API_URL || "https://peerbridge-api.onrender.com";
+  
+  // For Socket.io, use the same base URL
+  const SOCKET_URL = API_URL; // Assuming same server for socket
 
   // Safely extract email string from state
   let userEmail = "User";
@@ -19,9 +28,8 @@ export default function LoggedIn() {
     const user = location.state.user;
     if (typeof user === "string") {
       userEmail = user;
-    } else if (typeof user === "object") {
+    } else if (typeof user === "object" && user !== null) {
       userEmail = user.email || "User";
-      // Removed unused userId and userRole
     }
   }
 
@@ -31,25 +39,44 @@ export default function LoggedIn() {
   useEffect(() => {
     if (!userEmail) return;
 
-    const socket = io("http://localhost:5001");
+    console.log(`Connecting to socket server at: ${SOCKET_URL}`);
+    
+    // Create socket connection to deployed backend
+    const newSocket = io(SOCKET_URL, {
+      withCredentials: true,
+      transports: ['websocket', 'polling'], // Fallback to polling if websocket fails
+    });
 
-    socket.on("connect", () => {
+    newSocket.on("connect", () => {
       console.log("Connected to socket server");
-      socket.emit("registerUser", userEmail);
+      newSocket.emit("registerUser", userEmail);
     });
 
-    socket.on("matchFound", (data) => {
+    newSocket.on("connect_error", (error) => {
+      console.error(" Socket connection error:", error);
+    });
+
+    newSocket.on("matchFound", (data) => {
       console.log("Match found:", data.match);
-      alert(` Match found!\n\n${data.match.name} (${data.match.role}) for unit: ${data.match.unit}`);
+      alert(`Match found!\n\n${data.match.name} (${data.match.role}) for unit: ${data.match.unit}`);
     });
 
+    setSocket(newSocket);
+
+    // Cleanup on unmount
     return () => {
-      socket.disconnect();
+      console.log("Disconnecting socket...");
+      newSocket.disconnect();
     };
-  }, [userEmail]);
+  }, [userEmail, SOCKET_URL]);
 
   const handleSignOut = () => {
+    // Disconnect socket before signing out
+    if (socket) {
+      socket.disconnect();
+    }
     localStorage.removeItem("user");
+    localStorage.removeItem("token"); // Clear token if you're using JWT
     navigate("/");
   };
 
@@ -57,7 +84,12 @@ export default function LoggedIn() {
   const goToTutor = () => {
     console.log("Attempting to navigate to /tutor");
     try {
-      navigate("/tutor");
+      navigate("/tutor", { 
+        state: { 
+          userEmail,
+          fromLoggedIn: true 
+        } 
+      });
     } catch (err) {
       console.warn("navigate failed, using fallback", err);
       window.location.href = "/tutor";
@@ -67,7 +99,12 @@ export default function LoggedIn() {
   const goToTutee = () => {
     console.log("Attempting to navigate to /tutee");
     try {
-      navigate("/tutee");
+      navigate("/tutee", { 
+        state: { 
+          userEmail,
+          fromLoggedIn: true 
+        } 
+      });
     } catch (err) {
       console.warn("navigate failed, using fallback", err);
       window.location.href = "/tutee";
@@ -95,9 +132,11 @@ export default function LoggedIn() {
         <div className="role-selection">
           <div className="role-card tutor" onClick={goToTutor}>
             <h3>Tutor</h3>
+            <p>Help other students learn</p>
           </div>
           <div className="role-card tutee" onClick={goToTutee}>
             <h3>Tutee</h3>
+            <p>Get help with your courses</p>
           </div>
         </div>
       </div>
