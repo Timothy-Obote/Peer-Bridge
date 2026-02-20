@@ -1,9 +1,9 @@
 const { Pool } = require('pg');
 
 const pool = new Pool({
-    connectionString: process.env.DATABASE_URL,  // Render provides this automatically
+    connectionString: process.env.DATABASE_URL,
     ssl: {
-        rejectUnauthorized: false  // Required for Render's self-signed cert
+        rejectUnauthorized: false   // required for Render
     }
 });
 
