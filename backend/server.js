@@ -64,9 +64,10 @@ const io = new Server(server, {
             'http://localhost:5173', 
             'http://127.0.0.1:5173',
             // ADD YOUR VERCEL URL HERE FOR SOCKET.IO 
-            'https://peerbridge-eight.vercel.app'
+            'https://peerbridgepacs.vercel.app'
         ],
-        credentials: true 
+        credentials: true,
+        methods: ["GET", "POST"] 
     } 
 });
 
