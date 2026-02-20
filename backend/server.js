@@ -180,6 +180,82 @@ app.get('/debug/courses-schema', async (req, res) => {
 
 
 // ============ ADMIN OVERVIEW ============
+
+app.get("/admin/overview", async (req, res) => {
+    try {
+        // 1. Fetch all tutors
+        const { rows: tutors } = await pool.query(`
+            SELECT 
+                id, 
+                email, 
+                COALESCE(full_name, 'N/A') AS name, 
+                COALESCE(id_number, 'N/A') AS id_number, 
+                COALESCE(term, 'N/A') AS term, 
+                COALESCE(department, 'N/A') AS department,
+                created_at
+            FROM tutors 
+            ORDER BY created_at DESC
+        `);
+
+        // 2. Fetch all tutees
+        const { rows: tutees } = await pool.query(`
+            SELECT 
+                id, 
+                email, 
+                COALESCE(full_name, 'N/A') AS name, 
+                COALESCE(id_number, 'N/A') AS id_number, 
+                COALESCE(term, 'N/A') AS term, 
+                COALESCE(department, 'N/A') AS department,
+                created_at
+            FROM tutees 
+            ORDER BY created_at DESC
+        `);
+
+        // Helper to extract unit codes from selected_courses (jsonb)
+        const getUnits = async (table, id) => {
+            const { rows } = await pool.query(
+                `SELECT selected_courses FROM ${table} WHERE id = $1`,
+                [id]
+            );
+            if (!rows.length || !rows[0].selected_courses) return 'N/A';
+            const courseIds = rows[0].selected_courses; // already parsed by pg
+            if (!Array.isArray(courseIds) || courseIds.length === 0) return 'N/A';
+            const { rows: courses } = await pool.query(`
+                SELECT course_code AS unit_code 
+                FROM courses_1 
+                WHERE id = ANY($1::int[])
+            `, [courseIds]);
+            return courses.map(c => c.unit_code).join(', ') || 'N/A';
+        };
+
+        // 3. Enrich tutors with their selected courses
+        const tutorsWithUnits = await Promise.all(tutors.map(async (tutor) => {
+            const units = await getUnits('tutors', tutor.id);
+            return { ...tutor, units };
+        }));
+
+        // 4. Enrich tutees with their selected courses
+        const tuteesWithUnits = await Promise.all(tutees.map(async (tutee) => {
+            const units = await getUnits('tutees', tutee.id);
+            return { ...tutee, units };
+        }));
+
+        // 5. Response
+        res.json({
+            summary: {
+                total_users: tutorsWithUnits.length + tuteesWithUnits.length,
+                tutors: tutorsWithUnits.length,
+                tutees: tuteesWithUnits.length
+            },
+            tutors: tutorsWithUnits,
+            tutees: tuteesWithUnits
+        });
+
+    } catch (err) {
+        console.error('Admin overview error:', err);
+        res.status(500).json({ message: "Server error", error: String(err) });
+    }
+});
 // ============ SIGNIN ============
 app.post("/signin", async (req, res) => {
     const { email, password } = req.body;
