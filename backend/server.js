@@ -23,7 +23,7 @@ app.use(cors({
         'http://localhost:3000',
         'http://localhost:3001',
         'http://localhost:5001',
-        // ✅ ADD YOUR ACTUAL VERCEL FRONTEND URL HERE
+        // ADD YOUR ACTUAL VERCEL FRONTEND URL HERE
         'https://peerbridgepacs.vercel.app',
         // Keep any other preview URLs if needed
         'https://peerbridge-5zyu38rxf-gors-projects-57d8ecd6.vercel.app'
@@ -55,7 +55,7 @@ app.get("/", (req, res) => {
             admin: "/admin/overview",
             test_db: "/test-db",
             matches: "/api/matches",
-            debug_programs: "/debug/programs"   // 👈 new debug endpoint
+            debug_programs: "/debug/programs"   // new debug endpoint
         }
     });
 });
@@ -129,7 +129,7 @@ app.get('/api/programs/:programId/courses', async (req, res) => {
         `, [programId]);
         res.json(rows);
     } catch (error) {
-        console.error('Error in /api/programs/:programId/courses:', error);  // 👈 log full error
+        console.error('Error in /api/programs/:programId/courses:', error);  // log full error
         res.status(500).json({ message: 'Error fetching courses', error: error.message });
     }
 });
@@ -160,6 +160,20 @@ app.get('/test-db', async (req, res) => {
     } catch (error) {
         console.error('Test-db error:', error);
         res.status(500).json({ message: 'Database connection failed', error: error.message });
+    }
+});
+
+app.get('/debug/courses-schema', async (req, res) => {
+    try {
+        const result = await pool.query(`
+            SELECT column_name, data_type 
+            FROM information_schema.columns 
+            WHERE table_name = 'courses_1'
+            ORDER BY ordinal_position;
+        `);
+        res.json({ table: 'courses_1', columns: result.rows });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
     }
 });
 
