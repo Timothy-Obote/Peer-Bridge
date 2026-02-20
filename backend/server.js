@@ -1,8 +1,8 @@
 const express = require("express");
 const cors = require("cors");
-const mysql = require("mysql2");
+const { Pool } = require("pg");               // <-- changed from mysql2
 const bcrypt = require("bcrypt");
-const jwt = require("jsonwebtoken");// <-- new
+const jwt = require("jsonwebtoken");
 const http = require("http");
 const { Server } = require("socket.io");
 require("dotenv").config();
@@ -64,24 +64,29 @@ const io = new Server(server, {
             'http://localhost:5173', 
             'http://127.0.0.1:5173',
             // ADD YOUR VERCEL URL HERE FOR SOCKET.IO 
-            'https://peerbridge-5zyu38rxf-gors-projects-57d8ecd6.vercel.app'
+            'https://peerbridge-eight.vercel.app'
         ],
         credentials: true 
     } 
 });
 
-// ============ DATABASE POOL ============
-const pool = mysql
-  .createPool({
-    host: process.env.DB_HOST,
-    user: process.env.DB_USER,
-    password: process.env.DB_PASSWORD,
-    database: process.env.DB_NAME,
-    waitForConnections: true,
-    connectionLimit: 10,
-    queueLimit: 0,
-  })
-  .promise();
+// ============ DATABASE POOL (PostgreSQL) ============
+const pool = new Pool({
+    connectionString: process.env.DATABASE_URL,   // e.g., postgresql://user:pass@host/db?sslmode=require
+    ssl: {
+        rejectUnauthorized: false                  // required for Render
+    }
+});
+
+// Test the connection
+pool.connect((err, client, release) => {
+    if (err) {
+        console.error('Error connecting to PostgreSQL:', err.stack);
+    } else {
+        console.log('Connected to PostgreSQL database');
+        release();
+    }
+});
 
 // Active socket tracking
 const activeSockets = new Map();
@@ -97,68 +102,73 @@ io.on("connection", (socket) => {
   });
 });
 
-// ============ ENSURE TABLES ============
+// ============ ENSURE TABLES (PostgreSQL version) ============
 async function ensureTables() {
-  await pool.execute(`
+  // tutors table
+  await pool.query(`
     CREATE TABLE IF NOT EXISTS tutors (
-      id INT AUTO_INCREMENT PRIMARY KEY,
+      id SERIAL PRIMARY KEY,
       email VARCHAR(255) UNIQUE NOT NULL,
       password VARCHAR(255),
       full_name VARCHAR(255),
       id_number VARCHAR(255),
       term VARCHAR(255),
-      program_level ENUM('undergraduate', 'graduate'),
+      program_level VARCHAR(30) CHECK (program_level IN ('undergraduate', 'graduate')),
       program_id INT,
-      selected_courses JSON,
+      selected_courses JSONB,
       department VARCHAR(255),
       created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     )
   `);
 
-  await pool.execute(`
+  // tutees table
+  await pool.query(`
     CREATE TABLE IF NOT EXISTS tutees (
-      id INT AUTO_INCREMENT PRIMARY KEY,
+      id SERIAL PRIMARY KEY,
       email VARCHAR(255) UNIQUE NOT NULL,
       password VARCHAR(255),
       full_name VARCHAR(255),
       id_number VARCHAR(255),
       term VARCHAR(255),
-      program_level ENUM('undergraduate', 'graduate'),
+      program_level VARCHAR(30) CHECK (program_level IN ('undergraduate', 'graduate')),
       program_id INT,
-      selected_courses JSON,
+      selected_courses JSONB,
       department VARCHAR(255),
       created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     )
   `);
 
-  await pool.execute(`
+  // match_requests table
+  await pool.query(`
     CREATE TABLE IF NOT EXISTS match_requests (
-      id INT AUTO_INCREMENT PRIMARY KEY,
+      id SERIAL PRIMARY KEY,
       tutor_email VARCHAR(255) NOT NULL,
       tutee_email VARCHAR(255) NOT NULL,
       unit VARCHAR(255) NOT NULL,
       mode VARCHAR(50) DEFAULT 'online',
-      status ENUM('pending','accepted','rejected') DEFAULT 'pending',
+      status VARCHAR(30) CHECK (status IN ('pending','accepted','rejected')) DEFAULT 'pending',
       created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     )
   `);
 
-  await pool.execute(`
+  // matches table
+  await pool.query(`
     CREATE TABLE IF NOT EXISTS matches (
-      id INT AUTO_INCREMENT PRIMARY KEY,
+      id SERIAL PRIMARY KEY,
       tutor_id INT,
       tutee_id INT,
       unit VARCHAR(255),
       mode VARCHAR(50),
-      status ENUM('pending','accepted','rejected') DEFAULT 'pending',
+      status VARCHAR(30) CHECK (status IN ('pending','accepted','rejected')) DEFAULT 'pending',
       created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-      UNIQUE KEY uq_match (tutor_id, tutee_id, unit)
+      CONSTRAINT uq_match UNIQUE (tutor_id, tutee_id, unit)
     )
   `);
   
-  console.log('Database tables ensured');
+  console.log('Database tables ensured (PostgreSQL)');
 }
-ensureTables().catch(console.error);
+// Uncomment the line below if you want the app to create tables automatically
+// ensureTables().catch(console.error);
 
 // ============ ROUTES ============
 app.use('/api', programRoutes);
@@ -169,15 +179,16 @@ app.use('/', tutorRoutes);
 app.get('/api/programs/:programId/courses', async (req, res) => {
     try {
         const { programId } = req.params;
-        const [rows] = await pool.query(`
+        // Note: column names changed from "COL 2"/"COL 3" to course_code/course_name
+        const { rows } = await pool.query(`
             SELECT 
                 c.id,
-                c.\`COL 2\` as unit_code,
-                c.\`COL 3\` as unit_name
+                c.course_code AS unit_code,
+                c.course_name AS unit_name
             FROM courses_1 c
             INNER JOIN program_courses pc ON c.id = pc.course_id
-            WHERE pc.program_id = ?
-            ORDER BY c.\`COL 3\`
+            WHERE pc.program_id = $1
+            ORDER BY c.course_name
         `, [programId]);
         res.json(rows);
     } catch (error) {
@@ -193,7 +204,7 @@ app.get("/health", (req, res) => {
 // Test database connection
 app.get('/test-db', async (req, res) => {
     try {
-        const [rows] = await pool.query('SELECT 1 + 1 AS solution');
+        const { rows } = await pool.query('SELECT 1 + 1 AS solution');
         res.json({ message: 'Database connected!', result: rows[0].solution });
     } catch (error) {
         res.status(500).json({ message: 'Database connection failed', error: error.message });
@@ -207,7 +218,7 @@ app.post("/signin", async (req, res) => {
         return res.status(400).json({ success: false, message: "Email and password required" });
     }
 
-    // 1. Check for the hardcoded admin (optional – you could move admin to a DB table)
+    // 1. Check for the hardcoded admin
     if (email === "admin@usiu.ac.ke" && password === "PACS1234") {
         const token = jwt.sign(
             { id: 0, email, role: "admin" },
@@ -224,14 +235,14 @@ app.post("/signin", async (req, res) => {
 
     try {
         // 2. Search in tutors table
-        const [tutors] = await pool.execute(
-            "SELECT id, email, password, full_name, 'tutor' as role FROM tutors WHERE email = ?",
+        const { rows: tutors } = await pool.query(
+            "SELECT id, email, password, full_name, 'tutor' as role FROM tutors WHERE email = $1",
             [email]
         );
 
         // 3. Search in tutees table
-        const [tutees] = await pool.execute(
-            "SELECT id, email, password, full_name, 'tutee' as role FROM tutees WHERE email = ?",
+        const { rows: tutees } = await pool.query(
+            "SELECT id, email, password, full_name, 'tutee' as role FROM tutees WHERE email = $1",
             [email]
         );
 
@@ -241,7 +252,7 @@ app.post("/signin", async (req, res) => {
             return res.status(401).json({ success: false, message: "Invalid email or password" });
         }
 
-        // 4. Compare password (assumes passwords are hashed with bcrypt)
+        // 4. Compare password
         const passwordMatch = await bcrypt.compare(password, userRecord.password);
         if (!passwordMatch) {
             return res.status(401).json({ success: false, message: "Invalid email or password" });
@@ -275,7 +286,7 @@ app.post("/signin", async (req, res) => {
 app.get("/admin/overview", async (req, res) => {
     try {
         // 1. Fetch all tutors
-        const [tutors] = await pool.execute(`
+        const { rows: tutors } = await pool.query(`
             SELECT 
                 id, 
                 email, 
@@ -289,7 +300,7 @@ app.get("/admin/overview", async (req, res) => {
         `);
 
         // 2. Fetch all tutees
-        const [tutees] = await pool.execute(`
+        const { rows: tutees } = await pool.query(`
             SELECT 
                 id, 
                 email, 
@@ -302,46 +313,33 @@ app.get("/admin/overview", async (req, res) => {
             ORDER BY created_at DESC
         `);
 
-        // 3. Enrich tutors with their selected courses (as unit codes)
-        const tutorsWithUnits = await Promise.all(tutors.map(async (tutor) => {
-            const [courseRows] = await pool.execute(
-                "SELECT selected_courses FROM tutors WHERE id = ?",
-                [tutor.id]
+        // Helper to extract unit codes from selected_courses (jsonb)
+        const getUnits = async (table, id) => {
+            const { rows } = await pool.query(
+                `SELECT selected_courses FROM ${table} WHERE id = $1`,
+                [id]
             );
-            let units = '';
-            if (courseRows.length && courseRows[0].selected_courses) {
-                const courseIds = JSON.parse(courseRows[0].selected_courses);
-                if (courseIds.length > 0) {
-                    const [courses] = await pool.query(`
-                        SELECT \`COL 2\` as unit_code 
-                        FROM courses_1 
-                        WHERE id IN (?)
-                    `, [courseIds]);
-                    units = courses.map(c => c.unit_code).join(', ');
-                }
-            }
-            return { ...tutor, units: units || 'N/A' };
+            if (!rows.length || !rows[0].selected_courses) return 'N/A';
+            const courseIds = rows[0].selected_courses; // already parsed by pg
+            if (!Array.isArray(courseIds) || courseIds.length === 0) return 'N/A';
+            const { rows: courses } = await pool.query(`
+                SELECT course_code AS unit_code 
+                FROM courses_1 
+                WHERE id = ANY($1::int[])
+            `, [courseIds]);
+            return courses.map(c => c.unit_code).join(', ') || 'N/A';
+        };
+
+        // 3. Enrich tutors with their selected courses
+        const tutorsWithUnits = await Promise.all(tutors.map(async (tutor) => {
+            const units = await getUnits('tutors', tutor.id);
+            return { ...tutor, units };
         }));
 
         // 4. Enrich tutees with their selected courses
         const tuteesWithUnits = await Promise.all(tutees.map(async (tutee) => {
-            const [courseRows] = await pool.execute(
-                "SELECT selected_courses FROM tutees WHERE id = ?",
-                [tutee.id]
-            );
-            let units = '';
-            if (courseRows.length && courseRows[0].selected_courses) {
-                const courseIds = JSON.parse(courseRows[0].selected_courses);
-                if (courseIds.length > 0) {
-                    const [courses] = await pool.query(`
-                        SELECT \`COL 2\` as unit_code 
-                        FROM courses_1 
-                        WHERE id IN (?)
-                    `, [courseIds]);
-                    units = courses.map(c => c.unit_code).join(', ');
-                }
-            }
-            return { ...tutee, units: units || 'N/A' };
+            const units = await getUnits('tutees', tutee.id);
+            return { ...tutee, units };
         }));
 
         // 5. Response
