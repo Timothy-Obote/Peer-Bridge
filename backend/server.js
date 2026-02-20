@@ -66,7 +66,7 @@ const io = new Server(server, {
         origin: [
             'http://localhost:5173', 
             'http://127.0.0.1:5173',
-            'https://peerbridgepacs.vercel.app'   // ✅ already present
+            'https://peerbridgepacs.vercel.app'   //  already present
         ],
         credentials: true,
         methods: ["GET", "POST"] 

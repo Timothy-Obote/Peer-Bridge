@@ -16,7 +16,7 @@ export default function LoggedIn() {
   // Get backend URL from environment variable or use default
   // For Vite: import.meta.env.VITE_API_URL
   // For Create React App: process.env.REACT_APP_API_URL
-  const API_URL = import.meta.env.VITE_API_URL || "https://peerbridge-api.onrender.com";
+  const API_URL = import.meta.env.VITE_API_URL || "https://peerbridgepacs.vercel.app";
   
   // For Socket.io, use the same base URL
   const SOCKET_URL = API_URL; // Assuming same server for socket
