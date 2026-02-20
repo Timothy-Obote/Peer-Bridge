@@ -177,12 +177,104 @@ app.get('/debug/courses-schema', async (req, res) => {
     }
 });
 
-// ============ SIGNIN ============
-app.post("/signin", async (req, res) => { /* ... keep as is ... */ });
+
 
 // ============ ADMIN OVERVIEW ============
-app.get("/admin/overview", async (req, res) => { /* ... keep as is ... */ });
+// ============ SIGNIN ============
+app.post("/signin", async (req, res) => {
+    const { email, password } = req.body;
+    if (!email || !password) {
+        return res.status(400).json({ success: false, message: "Email and password required" });
+    }
 
+    // 1. Check for the hardcoded admin
+    if (email === "admin@usiu.ac.ke" && password === "PACS1234") {
+        const token = jwt.sign(
+            { id: 0, email, role: "admin" },
+            process.env.JWT_SECRET,
+            { expiresIn: "1d" }
+        );
+        return res.status(200).json({
+            success: true,
+            message: "Admin login successful",
+            user: { id: 0, full_name: "Administrator", email, role: "admin" },
+            token
+        });
+    }
+
+    try {
+        // 2. Search in tutors table
+        const tutors = await pool.query(
+            "SELECT id, email, password, full_name, 'tutor' as role FROM tutors WHERE email = $1",
+            [email]
+        );
+
+        // 3. Search in tutees table
+        const tutees = await pool.query(
+            "SELECT id, email, password, full_name, 'tutee' as role FROM tutees WHERE email = $1",
+            [email]
+        );
+
+        const userRecord = tutors.rows[0] || tutees.rows[0];
+
+        if (!userRecord) {
+            return res.status(401).json({ success: false, message: "Invalid email or password" });
+        }
+
+        // 4. Compare password
+        const passwordMatch = await bcrypt.compare(password, userRecord.password);
+        if (!passwordMatch) {
+            return res.status(401).json({ success: false, message: "Invalid email or password" });
+        }
+
+        // 5. Remove password from user object
+        const { password: _, ...userWithoutPassword } = userRecord;
+
+        // 6. Generate JWT token
+        const token = jwt.sign(
+            { id: userRecord.id, email: userRecord.email, role: userRecord.role },
+            process.env.JWT_SECRET,
+            { expiresIn: "1d" }
+        );
+
+        // 7. Send response
+        res.status(200).json({
+            success: true,
+            message: "Login successful",
+            user: userWithoutPassword,
+            token
+        });
+
+    } catch (error) {
+        console.error("Signin error:", error);
+        res.status(500).json({ success: false, message: "Internal server error" });
+    }
+});
+
+// ============ SIGNUP ============
+app.post("/signup", async (req, res) => {
+    const { email, password } = req.body;
+    if (!email || !password) {
+        return res.status(400).json({ success: false, message: "Email and password required" });
+    }
+    try {
+        // Hash password
+        const hashedPassword = await bcrypt.hash(password, 10);
+        // Insert into a users table (you may need to create this table)
+        // This example assumes a 'users' table exists.
+        await pool.query(
+            "INSERT INTO users (email, password, role) VALUES ($1, $2, 'pending')",
+            [email, hashedPassword]
+        );
+        res.status(201).json({ success: true, message: "User created. Please sign in." });
+    } catch (error) {
+        if (error.code === '23505') { // unique violation
+            return res.status(400).json({ success: false, message: "Email already exists" });
+        }
+        console.error("Signup error:", error);
+        res.status(500).json({ success: false, message: "Internal server error" });
+    }
+});
 // ============ MATCHES PLACEHOLDER ============
 app.get("/api/matches", (req, res) => {
     res.json([]);
@@ -207,6 +299,6 @@ server.listen(PORT, '0.0.0.0', () => {
     console.log(`Backend Server:   http://localhost:${PORT}`);
     console.log(`Frontend (Vite):  http://localhost:5173`);
     console.log('='.repeat(60));
-    console.log('Admin Login:  admin@usiu.ac.ke / git checkout master');
+    console.log('Admin Login:  admin@usiu.ac.ke / PACS1234');
     console.log('='.repeat(60));
 });
