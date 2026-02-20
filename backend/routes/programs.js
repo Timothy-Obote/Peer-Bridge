@@ -1,11 +1,10 @@
 const express = require('express');
 const router = express.Router();
-const pool = require('../db'); // assume this exports a pg.Pool instance
+const pool = require('../db'); // pg.Pool instance
 
 // Get all programs grouped by level
 router.get('/programs', async (req, res) => {
     try {
-        // PostgreSQL uses $1, $2... placeholders, and returns a result object with .rows
         const result = await pool.query(`
             SELECT id, program_name, program_level, department
             FROM programs 
@@ -13,7 +12,6 @@ router.get('/programs', async (req, res) => {
         `);
         
         const rows = result.rows;
-        
         const grouped = {
             undergraduate: rows.filter(p => p.program_level === 'undergraduate'),
             graduate: rows.filter(p => p.program_level === 'graduate')
@@ -26,7 +24,7 @@ router.get('/programs', async (req, res) => {
     }
 });
 
-// Get courses for a specific program - FIXED COLUMN NAMES
+// Get courses for a specific program – using actual column names
 router.get('/programs/:programId/courses', async (req, res) => {
     try {
         const { programId } = req.params;
@@ -43,17 +41,16 @@ router.get('/programs/:programId/courses', async (req, res) => {
             return res.status(404).json({ message: 'Program not found' });
         }
         
-        // Get courses with CORRECT column names: "COL 2" = code, "COL 3" = name
-        // PostgreSQL requires double quotes for identifiers with spaces
+        // Get courses using the correct column names: course_code and course_name
         const result = await pool.query(`
             SELECT 
                 c.id,
-                c."COL 2" AS unit_code,
-                c."COL 3" AS unit_name
+                c.course_code AS unit_code,
+                c.course_name AS unit_name
             FROM courses_1 c
             INNER JOIN program_courses pc ON c.id = pc.course_id
             WHERE pc.program_id = $1
-            ORDER BY c."COL 3"
+            ORDER BY c.course_name
         `, [programId]);
         
         console.log(`Returning ${result.rows.length} courses`);
