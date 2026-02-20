@@ -1,14 +1,14 @@
 const express = require('express');
 const router = express.Router();
-const pool = require('../db');
+const pool = require('../db');   // pg.Pool
 const bcrypt = require('bcrypt');
 
 // Register tutee with password and multiple courses
 router.post('/tutees', async (req, res) => {
-    const connection = await pool.getConnection();
+    const client = await pool.connect();
     
     try {
-        await connection.beginTransaction();
+        await client.query('BEGIN');
         
         const { 
             email, 
@@ -22,11 +22,11 @@ router.post('/tutees', async (req, res) => {
             department
         } = req.body;
         
-        // Debug log
         console.log('Registering tutee with department:', department);
         
         // Validate max 2 courses
         if (!selected_courses || selected_courses.length > 2 || selected_courses.length === 0) {
+            await client.query('ROLLBACK');
             return res.status(400).json({ 
                 message: 'Please select 1-2 courses' 
             });
@@ -39,20 +39,21 @@ router.post('/tutees', async (req, res) => {
         const coursesJson = JSON.stringify(selected_courses);
         
         // Check if tutee already exists
-        const [existing] = await connection.query(
-            "SELECT id FROM tutees WHERE email = ?", [email]
+        const existing = await client.query(
+            'SELECT id FROM tutees WHERE email = $1', [email]
         );
         
-        if (existing.length > 0) {
-            await connection.rollback();
+        if (existing.rows.length > 0) {
+            await client.query('ROLLBACK');
             return res.status(400).json({ message: 'Email already registered' });
         }
         
-        // FIXED: Added department to INSERT query (9 placeholders, 9 values)
-        const [result] = await connection.query(`
+        // Insert tutee with RETURNING id
+        const result = await client.query(`
             INSERT INTO tutees 
             (email, password, full_name, id_number, program_level, program_id, selected_courses, term, department) 
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+            RETURNING id
         `, [
             email, 
             hashedPassword, 
@@ -62,33 +63,35 @@ router.post('/tutees', async (req, res) => {
             program_id, 
             coursesJson, 
             term,
-            department  // Now properly mapped to the 9th placeholder
+            department
         ]);
 
+        const tuteeId = result.rows[0].id;
+
         // Update users table
-        await connection.query(
-            "UPDATE users SET role = 'tutee', full_name = ? WHERE email = ?",
-            [name, email]
+        await client.query(
+            'UPDATE users SET role = $1, full_name = $2 WHERE email = $3',
+            ['tutee', name, email]
         );
                         
-        await connection.commit();
+        await client.query('COMMIT');
         
         res.status(201).json({ 
             message: 'Tutee registered successfully!',
-            tuteeId: result.insertId 
+            tuteeId
         });
         
     } catch (error) {
-        await connection.rollback();
+        await client.query('ROLLBACK');
         console.error('Error registering tutee:', error);
         
-        if (error.code === 'ER_DUP_ENTRY') {
+        if (error.code === '23505') {
             return res.status(400).json({ message: 'Email already exists' });
         }
         
-        res.status(500).json({ message: 'Error registering tutee' });
+        res.status(500).json({ message: 'Error registering tutee', error: error.message });
     } finally {
-        connection.release();
+        client.release();
     }
 });
 
@@ -97,37 +100,37 @@ router.get('/tutees/:id/courses', async (req, res) => {
     try {
         const { id } = req.params;
         
-        const [rows] = await pool.query(`
+        const tuteeResult = await pool.query(`
             SELECT selected_courses, program_id, full_name, department 
             FROM tutees 
-            WHERE id = ?
+            WHERE id = $1
         `, [id]);
         
-        if (rows.length === 0) {
+        if (tuteeResult.rows.length === 0) {
             return res.status(404).json({ message: 'Tutee not found' });
         }
         
-        const tutee = rows[0];
+        const tutee = tuteeResult.rows[0];
         const courseIds = JSON.parse(tutee.selected_courses || '[]');
         
         if (courseIds.length === 0) {
             return res.json([]);
         }
         
-        const [courses] = await pool.query(`
+        const coursesResult = await pool.query(`
             SELECT 
                 id, 
-                \`COL 2\` as unit_code, 
-                \`COL 3\` as unit_name 
+                "COL 2" AS unit_code, 
+                "COL 3" AS unit_name 
             FROM courses_1 
-            WHERE id IN (?)
+            WHERE id = ANY($1::int[])
         `, [courseIds]);
         
-        res.json(courses);
+        res.json(coursesResult.rows);
         
     } catch (error) {
         console.error('Error fetching tutee courses:', error);
-        res.status(500).json({ message: 'Error fetching courses' });
+        res.status(500).json({ message: 'Error fetching courses', error: error.message });
     }
 });
 
