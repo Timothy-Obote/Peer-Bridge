@@ -1,19 +1,32 @@
 const express = require("express");
 const cors = require("cors");
-const pool = require('./db');
+const pool = require('./db'); // single pool import from db.js
 const bcrypt = require("bcrypt");
 const jwt = require("jsonwebtoken");
 const http = require("http");
 const { Server } = require("socket.io");
-const cron = require("node-cron"); // if you want scheduled matching
+const cron = require("node-cron");
 require("dotenv").config();
 
-// Import route files (they may need updating to new schema)
+// Import route files
 const programRoutes = require('./routes/programs');
 const tuteeRoutes = require('./routes/tutees');
 const tutorRoutes = require('./routes/tutors');
 
 const app = express();
+
+// ============ AUTHENTICATION MIDDLEWARE ============
+const authenticateToken = (req, res, next) => {
+  const authHeader = req.headers['authorization'];
+  const token = authHeader && authHeader.split(' ')[1];
+  if (!token) return res.status(401).json({ error: 'Access denied' });
+
+  jwt.verify(token, process.env.JWT_SECRET, (err, user) => {
+    if (err) return res.status(403).json({ error: 'Invalid token' });
+    req.user = user;
+    next();
+  });
+};
 
 // ============ MIDDLEWARE ============
 app.use(cors({
@@ -55,10 +68,10 @@ app.get("/", (req, res) => {
             test_db: "/test-db",
             matches: "/api/matches",
             debug_programs: "/debug/programs",
-            suggestions: "/api/suggestions/:tutorId",           // new
-            accept_suggestion: "/api/suggestions/:id/accept",   // new
-            reject_suggestion: "/api/suggestions/:id/reject",   // new
-            run_matching: "/api/matching/run"                   // new (admin)
+            suggestions: "/api/suggestions/:tutorId",
+            accept_suggestion: "/api/suggestions/:id/accept",
+            reject_suggestion: "/api/suggestions/:id/reject",
+            run_matching: "/api/matching/run"
         }
     });
 });
@@ -76,24 +89,7 @@ const io = new Server(server, {
     } 
 });
 
-// ============ DATABASE POOL (PostgreSQL) ============
-const pool = new Pool({
-    connectionString: process.env.DATABASE_URL,
-    ssl: {
-        rejectUnauthorized: false   // required for Render
-    }
-});
-
-pool.connect((err, client, release) => {
-    if (err) {
-        console.error('Error connecting to PostgreSQL:', err.stack);
-    } else {
-        console.log('Connected to PostgreSQL database');
-        release();
-    }
-});
-
-// Active socket tracking (keep as is)
+// Active socket tracking
 const activeSockets = new Map();
 io.on("connection", (socket) => {
   console.log("Socket connected:", socket.id);
@@ -296,7 +292,6 @@ app.post("/signup", async (req, res) => {
     }
     try {
         const hashedPassword = await bcrypt.hash(password, 10);
-        // Insert into users table with role 'pending' (you may later update after profile completion)
         await pool.query(
             "INSERT INTO users (email, password, role) VALUES ($1, $2, 'pending')",
             [email, hashedPassword]
@@ -312,7 +307,7 @@ app.post("/signup", async (req, res) => {
 });
 
 // ============ MATCHING LOGIC FUNCTIONS ============
-const matching = require('./matching'); // we'll create this module separately
+const matching = require('./matching');
 
 // ============ NEW MATCHING ENDPOINTS ============
 
@@ -344,7 +339,7 @@ app.get('/api/suggestions/:tutorId', async (req, res) => {
     }
 });
 
-// Accept a suggestion (tutor agrees to teach a new course)
+// Accept a suggestion
 app.post('/api/suggestions/:id/accept', async (req, res) => {
     try {
         const result = await matching.acceptSuggestion(req.params.id);
@@ -418,7 +413,7 @@ app.get('/api/matches/tutee/:tuteeId', authenticateToken, async (req, res) => {
   }
 });
 
-// Get pending suggestions for a tutee (where tutee_id = given)
+// Get pending suggestions for a tutee
 app.get('/api/suggestions/tutee/:tuteeId', authenticateToken, async (req, res) => {
   const { tuteeId } = req.params;
   try {
@@ -454,7 +449,7 @@ app.get('/api/tutee/:id/courses', authenticateToken, async (req, res) => {
 // Update (replace) courses needed by a tutee
 app.put('/api/tutee/:id/courses', authenticateToken, async (req, res) => {
   const { id } = req.params;
-  const { courseIds } = req.body; // array of course ids
+  const { courseIds } = req.body;
   const client = await pool.connect();
   try {
     await client.query('BEGIN');
@@ -475,14 +470,10 @@ app.put('/api/tutee/:id/courses', authenticateToken, async (req, res) => {
   }
 });
 
-
-
-
 // ============ PROFILE & COURSES ENDPOINTS ============
 
-// Get user by ID (protected)
+// Get user by ID
 app.get('/api/users/:id', authenticateToken, async (req, res) => {
-  // Optional: ensure the user can only access their own profile unless admin
   if (req.user.id !== parseInt(req.params.id) && req.user.role !== 'admin') {
     return res.status(403).json({ error: 'Forbidden' });
   }
@@ -503,7 +494,7 @@ app.get('/api/users/:id', authenticateToken, async (req, res) => {
   }
 });
 
-// Update user profile (protected)
+// Update user profile
 app.put('/api/users/:id', authenticateToken, async (req, res) => {
   if (req.user.id !== parseInt(req.params.id) && req.user.role !== 'admin') {
     return res.status(403).json({ error: 'Forbidden' });
@@ -521,7 +512,7 @@ app.put('/api/users/:id', authenticateToken, async (req, res) => {
   }
 });
 
-// Get all departments (public or protected – you decide)
+// Get all departments
 app.get('/api/departments', async (req, res) => {
   try {
     const { rows } = await pool.query('SELECT id, name FROM departments ORDER BY name');
@@ -531,7 +522,7 @@ app.get('/api/departments', async (req, res) => {
   }
 });
 
-// Get all courses (public or protected)
+// Get all courses
 app.get('/api/courses', async (req, res) => {
   try {
     const { rows } = await pool.query('SELECT id, code, name FROM courses ORDER BY code');
@@ -541,25 +532,8 @@ app.get('/api/courses', async (req, res) => {
   }
 });
 
-app.get('/api/tutor/:id/courses', async (req, res) => {
-  const { id } = req.params;
-  try {
-    const { rows } = await pool.query(
-      `SELECT c.id, c.code, c.name
-       FROM tutor_courses tc
-       JOIN courses c ON tc.course_id = c.id
-       WHERE tc.tutor_id = $1`,
-      [id]
-    );
-    res.json(rows);
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
-});
-
 // Get courses offered by a specific tutor (protected)
 app.get('/api/tutor/:id/courses', authenticateToken, async (req, res) => {
-  // Allow if it's the tutor themselves or an admin
   if (req.user.id !== parseInt(req.params.id) && req.user.role !== 'admin') {
     return res.status(403).json({ error: 'Forbidden' });
   }
@@ -578,19 +552,17 @@ app.get('/api/tutor/:id/courses', authenticateToken, async (req, res) => {
   }
 });
 
-// Update (replace) courses offered by a tutor (protected)
+// Update (replace) courses offered by a tutor
 app.put('/api/tutor/:id/courses', authenticateToken, async (req, res) => {
   if (req.user.id !== parseInt(req.params.id) && req.user.role !== 'admin') {
     return res.status(403).json({ error: 'Forbidden' });
   }
   const { id } = req.params;
-  const { courseIds } = req.body; // array of course ids
+  const { courseIds } = req.body;
   const client = await pool.connect();
   try {
     await client.query('BEGIN');
-    // Delete all existing courses for this tutor
     await client.query('DELETE FROM tutor_courses WHERE tutor_id = $1', [id]);
-    // Insert new ones
     for (const courseId of courseIds) {
       await client.query(
         'INSERT INTO tutor_courses (tutor_id, course_id) VALUES ($1, $2)',
@@ -606,6 +578,7 @@ app.put('/api/tutor/:id/courses', authenticateToken, async (req, res) => {
     client.release();
   }
 });
+
 // ============ 404 HANDLER ============
 app.use((req, res) => {
     res.status(404).json({ success: false, message: `Route not found: ${req.method} ${req.url}` });
