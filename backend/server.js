@@ -733,7 +733,7 @@ app.use((err, req, res, next) => {
     res.status(500).json({ success: false, message: 'Internal server error' });
 });
 
-// ============ START SERVER ============
+// ============ START SERVER =============
 const PORT = process.env.PORT || 5001;
 server.listen(PORT, '0.0.0.0', () => {
     console.log('='.repeat(60));
