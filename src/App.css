@@ -162,7 +162,7 @@ body {
   position: relative;
 }
 
-.main-content h1 {
+.main-bg.main-content h1 {
   color: #FFD700; /* Yellow */
   font-size: 2.2rem;
   margin-bottom: 1rem;
@@ -171,7 +171,7 @@ body {
   text-shadow: 1px 1px 8px rgba(0,0,0,0.08);
 }
 
-.main-content p {
+.main-bg .main-content p {
   color:#002244;
   font-size: 1.15rem;
   line-height: 1.6;
@@ -335,7 +335,7 @@ html {
     align-items: stretch;
     padding: 1rem 0;
   }
-  .main-content {
+  .main-bg .main-content {
     padding-left: 1rem;
     padding-right: 1rem;
     margin-bottom: 1rem;
