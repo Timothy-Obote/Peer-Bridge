@@ -4,14 +4,6 @@ import { tuteeService } from "./services/tuteeService";
 import type { Program, Course, TuteeRegistrationData } from "./types/course.types";
 import "./tutee.css";
 
-// Extended type for the new course structure from /api/courses
-interface NewCourse {
-  id: number;
-  code: string;
-  name: string;
-  program_name?: string; // optional, used for filtering
-}
-
 const Tutee: React.FC = () => {
     const navigate = useNavigate();
 
@@ -34,8 +26,7 @@ const Tutee: React.FC = () => {
         graduate: Program[];
     }>({ undergraduate: [], graduate: [] });
 
-    const [allCourses, setAllCourses] = useState<NewCourse[]>([]); // all courses from /api/courses
-    const [availableCourses, setAvailableCourses] = useState<Course[]>([]); // filtered and formatted for display
+    const [availableCourses, setAvailableCourses] = useState<Course[]>([]);
     const [loading, setLoading] = useState({
         programs: false,
         courses: false,
@@ -43,20 +34,19 @@ const Tutee: React.FC = () => {
     });
     const [status, setStatus] = useState({ type: "", message: "" });
 
-    // Fetch programs and all courses on mount
+    // Fetch programs on mount
     useEffect(() => {
         fetchPrograms();
-        fetchAllCourses();
     }, []);
 
-    // Filter courses when program is selected
+    // Fetch courses when program is selected
     useEffect(() => {
         if (formData.program_id) {
-            filterCoursesByProgram(Number(formData.program_id));
+            fetchProgramCourses(Number(formData.program_id));
         } else {
             setAvailableCourses([]);
         }
-    }, [formData.program_id, allCourses, programs]); // re-run when allCourses or programs change
+    }, [formData.program_id]);
 
     const fetchPrograms = async () => {
         setLoading(prev => ({ ...prev, programs: true }));
@@ -71,44 +61,35 @@ const Tutee: React.FC = () => {
         }
     };
 
-    const fetchAllCourses = async () => {
+    const fetchProgramCourses = async (programId: number) => {
         setLoading(prev => ({ ...prev, courses: true }));
         try {
-            const response = await fetch(`${import.meta.env.VITE_API_URL}/api/courses`);
+            const response = await fetch(`${import.meta.env.VITE_API_URL}/api/programs/${programId}/courses`);
             if (!response.ok) throw new Error("Failed to fetch courses");
             const data = await response.json();
-            setAllCourses(data);
+
+            // Map to the expected Course format (unit_code, unit_name)
+            const mapped: Course[] = data.map((c: any) => ({
+                id: c.id,
+                unit_code: c.code,
+                unit_name: c.name,
+                credits: 3 // default
+            }));
+
+            setAvailableCourses(mapped);
+
+            // Update department field with selected program's name
+            const allPrograms = [...programs.undergraduate, ...programs.graduate];
+            const selectedProgram = allPrograms.find(p => p.id === programId);
+            if (selectedProgram) {
+                setFormData(prev => ({ ...prev, department: selectedProgram.program_name }));
+            }
         } catch (error) {
-            console.error("Error fetching all courses:", error);
-            showStatus("error", "Could not load course catalog.");
+            console.error("Error fetching courses:", error);
+            showStatus("error", "Could not load courses for this program.");
         } finally {
             setLoading(prev => ({ ...prev, courses: false }));
         }
-    };
-
-    const filterCoursesByProgram = (programId: number) => {
-        // Find the selected program
-        const allPrograms = [...programs.undergraduate, ...programs.graduate];
-        const selectedProgram = allPrograms.find(p => p.id === programId);
-        if (!selectedProgram) return;
-
-        // Update department field with program name
-        setFormData(prev => ({ ...prev, department: selectedProgram.program_name }));
-
-        // Filter courses where program_name matches the selected program's name
-        const filtered = allCourses.filter(
-            course => course.program_name === selectedProgram.program_name
-        );
-
-        // Map to the expected Course format (unit_code, unit_name)
-        const mapped: Course[] = filtered.map(c => ({
-            id: c.id,
-            unit_code: c.code,
-            unit_name: c.name,
-            credits: 3 // default, adjust if needed
-        }));
-
-        setAvailableCourses(mapped);
     };
 
     const handleInputChange = (

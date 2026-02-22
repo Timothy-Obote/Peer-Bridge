@@ -108,19 +108,15 @@ app.use('/api', programRoutes);
 app.use('/', tuteeRoutes);
 app.use('/', tutorRoutes);
 
-// ============ OLD ENDPOINTS (keep for now) ============
+// ============ NEW ENDPOINT: Get courses by program ID (using new schema) ============
 app.get('/api/programs/:programId/courses', async (req, res) => {
     try {
         const { programId } = req.params;
         const { rows } = await pool.query(`
-            SELECT 
-                c.id,
-                c.course_code AS unit_code,
-                c.course_name AS unit_name
-            FROM courses_1 c
-            INNER JOIN program_courses pc ON c.id = pc.course_id
-            WHERE pc.program_id = $1
-            ORDER BY c.course_name
+            SELECT id, code, name
+            FROM courses
+            WHERE program_id = $1
+            ORDER BY code
         `, [programId]);
         res.json(rows);
     } catch (error) {
@@ -129,6 +125,7 @@ app.get('/api/programs/:programId/courses', async (req, res) => {
     }
 });
 
+// ============ OLD ENDPOINTS (keep for now) ============
 app.get('/debug/programs', async (req, res) => {
     try {
         const { rows } = await pool.query('SELECT * FROM programs LIMIT 10');
