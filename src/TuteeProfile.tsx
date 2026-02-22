@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import "./TuteeProfile.css"; // we'll create this file with modern styles
+import "./TuteeProfile.css";
 
 interface Department {
   id: number;
@@ -17,10 +17,10 @@ interface UserProfile {
   id: number;
   email: string;
   name: string;
-  id_number?: string;          // school ID (optional for now)
-  avatar_url?: string;          // profile picture URL
-  is_online?: boolean;          // online status
-  last_seen?: string;           // timestamp
+  id_number?: string;
+  avatar_url?: string;
+  is_online?: boolean;
+  last_seen?: string;
   department_id: number | null;
   department: string | null;
   term: string | null;
@@ -29,10 +29,9 @@ interface UserProfile {
 const TuteeProfile = () => {
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [departments, setDepartments] = useState<Department[]>([]);
-  const [allCourses, setAllCourses] = useState<Course[]>([]);
-  const [selectedCourses, setSelectedCourses] = useState<number[]>([]);
+  const [, setAllCourses] = useState<Course[]>([]);
+  const [selectedCourses, setSelectedCourses] = useState<Course[]>([]);
   const [loading, setLoading] = useState(true);
-  const [saving, setSaving] = useState(false);
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -46,12 +45,11 @@ const TuteeProfile = () => {
 
     const fetchData = async () => {
       try {
-        // Fetch profile – extend backend to return id_number, avatar, last_seen, is_online
+        // Fetch profile
         const profileRes = await fetch(`${import.meta.env.VITE_API_URL}/api/users/${user.id}`, {
           headers: { Authorization: `Bearer ${token}` },
         });
         const profileData = await profileRes.json();
-        // Add mock data if backend doesn't provide them yet
         setProfile({
           ...profileData,
           id_number: profileData.id_number || "666548",
@@ -67,17 +65,17 @@ const TuteeProfile = () => {
         setDepartments(await deptRes.json());
 
         // Fetch all courses
-        const coursesRes = await fetch(`/api/courses`, {
+        const coursesRes = await fetch(`${import.meta.env.VITE_API_URL}/api/courses`, {
           headers: { Authorization: `Bearer ${token}` },
         });
         setAllCourses(await coursesRes.json());
 
-        // Fetch tutee's current needed courses
+        // Fetch tutee's current needed courses (store full course objects)
         const tuteeCoursesRes = await fetch(`${import.meta.env.VITE_API_URL}/api/tutee/${user.id}/courses`, {
           headers: { Authorization: `Bearer ${token}` },
         });
         const tuteeCourses = await tuteeCoursesRes.json();
-        setSelectedCourses(tuteeCourses.map((c: Course) => c.id));
+        setSelectedCourses(tuteeCourses);
       } catch (error) {
         console.error("Error fetching profile data:", error);
       } finally {
@@ -86,46 +84,6 @@ const TuteeProfile = () => {
     };
     fetchData();
   }, [navigate]);
-
-  const handleSave = async () => {
-    setSaving(true);
-    const user = JSON.parse(localStorage.getItem("user") || "{}");
-    const token = localStorage.getItem("token");
-
-    try {
-      // Update profile (including id_number)
-      await fetch(`${import.meta.env.VITE_API_URL}/api/users/${user.id}`, {
-        method: "PUT",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({
-          name: profile?.name,
-          id_number: profile?.id_number,
-          department_id: profile?.department_id,
-          term: profile?.term,
-        }),
-      });
-
-      // Update needed courses
-      await fetch(`${import.meta.env.VITE_API_URL}/api/tutee/${user.id}/courses`, {
-        method: "PUT",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({ courseIds: selectedCourses }),
-      });
-
-      alert("Profile updated successfully");
-    } catch (error) {
-      console.error("Error saving profile:", error);
-      alert("Failed to update profile");
-    } finally {
-      setSaving(false);
-    }
-  };
 
   const getLastSeenText = () => {
     if (!profile?.last_seen) return "Never";
@@ -146,105 +104,57 @@ const TuteeProfile = () => {
   return (
     <div className="profile-page">
       <div className="profile-card">
-        {/* Profile Header with Avatar & Basic Info */}
-        <div className="profile-header">
-          <div className="avatar-section">
-            <img src={profile?.avatar_url} alt="Profile" className="avatar" />
-            <div className={`online-indicator ${profile?.is_online ? "online" : "offline"}`}>
+        {/* Avatar & Online Status */}
+        <div className="profile-avatar-section">
+          <div className="avatar-wrapper">
+            <img src={profile?.avatar_url} alt="Profile" className="profile-avatar" />
+            <span className={`online-badge ${profile?.is_online ? "online" : "offline"}`}>
               {profile?.is_online ? "● Online" : "○ Offline"}
-            </div>
-          </div>
-          <div className="header-info">
-            <h1>{profile?.name || "Tutee"}</h1>
-            <p className="last-seen">Last seen: {getLastSeenText()}</p>
+            </span>
           </div>
         </div>
 
-        {/* Profile Form */}
-        <div className="profile-form">
-          <div className="form-row">
-            <div className="form-group">
-              <label>Email</label>
-              <input type="email" value={profile?.email || ""} disabled />
-            </div>
-            <div className="form-group">
-              <label>School ID Number</label>
-              <input
-                type="text"
-                value={profile?.id_number || ""}
-                onChange={(e) => setProfile({ ...profile!, id_number: e.target.value })}
-                placeholder="e.g. S12345678"
-              />
-            </div>
-          </div>
+        {/* Name & Basic Info */}
+        <h1 className="profile-name">{profile?.name || "Tutee"}</h1>
+        <p className="profile-email">{profile?.email}</p>
+        <p className="profile-last-seen">Last seen: {getLastSeenText()}</p>
 
-          <div className="form-row">
-            <div className="form-group">
-              <label>Full Name</label>
-              <input
-                type="text"
-                value={profile?.name || ""}
-                onChange={(e) => setProfile({ ...profile!, name: e.target.value })}
-              />
-            </div>
-            <div className="form-group">
-              <label>Term</label>
-              <input
-                type="text"
-                value={profile?.term || ""}
-                onChange={(e) => setProfile({ ...profile!, term: e.target.value })}
-                placeholder="e.g. Spring 2025"
-              />
-            </div>
+        {/* Details Grid */}
+        <div className="profile-details">
+          <div className="detail-item">
+            <span className="detail-label">School ID</span>
+            <span className="detail-value">{profile?.id_number}</span>
           </div>
-
-          <div className="form-row">
-            <div className="form-group full-width">
-              <label>Department</label>
-              <select
-                value={profile?.department_id || ""}
-                onChange={(e) =>
-                  setProfile({ ...profile!, department_id: parseInt(e.target.value) })
-                }
-              >
-                <option value="">Select Department</option>
-                {departments.map((d) => (
-                  <option key={d.id} value={d.id}>
-                    {d.name}
-                  </option>
-                ))}
-              </select>
-            </div>
+          <div className="detail-item">
+            <span className="detail-label">Semester</span>
+            <span className="detail-value">{profile?.term || "Not set"}</span>
           </div>
+          <div className="detail-item">
+            <span className="detail-label">Department</span>
+            <span className="detail-value">
+              {departments.find(d => d.id === profile?.department_id)?.name || profile?.department || "Not set"}
+            </span>
+          </div>
+        </div>
 
-          <div className="form-group full-width">
-            <label>Courses I Need</label>
-            <div className="courses-grid">
-              {allCourses.map((course) => (
-                <label key={course.id} className="checkbox-item">
-                  <input
-                    type="checkbox"
-                    checked={selectedCourses.includes(course.id)}
-                    onChange={(e) => {
-                      if (e.target.checked) {
-                        setSelectedCourses([...selectedCourses, course.id]);
-                      } else {
-                        setSelectedCourses(selectedCourses.filter((id) => id !== course.id));
-                      }
-                    }}
-                  />
-                  <span className="course-code">{course.code}</span> – {course.name}
-                </label>
+        {/* Courses Needed */}
+        <div className="courses-section">
+          <h3>Courses I Need</h3>
+          {selectedCourses.length > 0 ? (
+            <div className="course-chips">
+              {selectedCourses.map((course) => (
+                <span key={course.id} className="course-chip">
+                  {course.code}
+                </span>
               ))}
             </div>
-          </div>
-
-          <div className="form-actions">
-            <button onClick={handleSave} disabled={saving} className="save-btn">
-              {saving ? "Saving..." : "Save Changes"}
-            </button>
-          </div>
+          ) : (
+            <p className="no-courses">No courses selected yet.</p>
+          )}
         </div>
+
+        {/* Optional Edit Button (can be enabled later) */}
+        {/* <button className="edit-profile-btn">Edit Profile</button> */}
       </div>
     </div>
   );
