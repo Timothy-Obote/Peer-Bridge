@@ -480,7 +480,8 @@ app.get('/api/users/:id', authenticateToken, async (req, res) => {
   try {
     const { id } = req.params;
     const user = await pool.query(
-      `SELECT u.id, u.email, u.name, u.role, u.department_id, d.name as department,
+      `SELECT u.id, u.email, u.name, u.role, u.id_number, u.avatar_url, u.last_seen, u.is_online,
+              u.department_id, d.name as department,
               u.program_level, u.term
        FROM users u
        LEFT JOIN departments d ON u.department_id = d.id
@@ -494,17 +495,17 @@ app.get('/api/users/:id', authenticateToken, async (req, res) => {
   }
 });
 
-// Update user profile
+// Update user profile (allows updating name, id_number, department_id, term)
 app.put('/api/users/:id', authenticateToken, async (req, res) => {
   if (req.user.id !== parseInt(req.params.id) && req.user.role !== 'admin') {
     return res.status(403).json({ error: 'Forbidden' });
   }
   const { id } = req.params;
-  const { name, department_id, term } = req.body;
+  const { name, id_number, department_id, term } = req.body;
   try {
     await pool.query(
-      `UPDATE users SET name = $1, department_id = $2, term = $3 WHERE id = $4`,
-      [name, department_id, term, id]
+      `UPDATE users SET name = $1, id_number = $2, department_id = $3, term = $4 WHERE id = $5`,
+      [name, id_number, department_id, term, id]
     );
     res.json({ success: true });
   } catch (err) {
