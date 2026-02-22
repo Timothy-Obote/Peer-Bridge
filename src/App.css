@@ -151,7 +151,7 @@ body {
 /* Add to App.css */
 
 .main-bg .main-content {
-  background: #cbd5e1; /* Deep blue */
+  background: #bfd6ff; /* Deep blue */
   color: #e90303;
   padding: 2.5rem 2rem;
   border-radius: 16px;
@@ -172,7 +172,7 @@ body {
 }
 
 .main-bg .main-content p {
-  color:#cbd5e1;
+  color:#bfd6ff;
   font-size: 1.15rem;
   line-height: 1.6;
   margin: 0;
