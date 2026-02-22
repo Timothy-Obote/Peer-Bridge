@@ -150,8 +150,8 @@ body {
 
 /* Add to App.css */
 
-.main-bg .main-content {
-  background: #bfd6ff; /* Deep blue */
+.main-content {
+  background: #002244; /* Deep blue */
   color: #e90303;
   padding: 2.5rem 2rem;
   border-radius: 16px;
@@ -162,7 +162,7 @@ body {
   position: relative;
 }
 
-.main-bg.main-content h1 {
+.main-content h1 {
   color: #FFD700; /* Yellow */
   font-size: 2.2rem;
   margin-bottom: 1rem;
@@ -171,10 +171,9 @@ body {
   text-shadow: 1px 1px 8px rgba(0,0,0,0.08);
 }
 
-.main-bg .main-content p {
-  color:#bfd6ff;
+.main-content p {
+  color:#002244;
   font-size: 1.15rem;
-  font: #002244;
   line-height: 1.6;
   margin: 0;
 }
@@ -336,7 +335,7 @@ html {
     align-items: stretch;
     padding: 1rem 0;
   }
-   .main-content {
+  .main-content {
     padding-left: 1rem;
     padding-right: 1rem;
     margin-bottom: 1rem;
