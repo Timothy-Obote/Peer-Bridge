@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
+import "./App.css"
 import "./TutorProfile.css"; // we'll create this file below
 
 interface Department {
