@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import "./TuteeProfile.css"; // Reuse the same modern styles (or create a shared Profile.css)
+import "./TutorProfile.css"; // we'll create this file below
 
 interface Department {
   id: number;
@@ -29,10 +29,9 @@ interface UserProfile {
 const TutorProfile = () => {
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [departments, setDepartments] = useState<Department[]>([]);
-  const [allCourses, setAllCourses] = useState<Course[]>([]);
-  const [selectedCourses, setSelectedCourses] = useState<number[]>([]);
+  const [, setAllCourses] = useState<Course[]>([]);
+  const [selectedCourses, setSelectedCourses] = useState<Course[]>([]);
   const [loading, setLoading] = useState(true);
-  const [saving, setSaving] = useState(false);
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -60,7 +59,7 @@ const TutorProfile = () => {
           last_seen: profileData.last_seen || new Date().toISOString(),
         });
 
-        // Fetch departments
+        // Fetch departments (for department name)
         const deptRes = await fetch(`/api/departments`, {
           headers: { Authorization: `Bearer ${token}` },
         });
@@ -72,12 +71,12 @@ const TutorProfile = () => {
         });
         setAllCourses(await coursesRes.json());
 
-        // Fetch tutor's current courses
+        // Fetch tutor's current courses (store full course objects)
         const tutorCoursesRes = await fetch(`/api/tutor/${user.id}/courses`, {
           headers: { Authorization: `Bearer ${token}` },
         });
         const tutorCourses = await tutorCoursesRes.json();
-        setSelectedCourses(tutorCourses.map((c: Course) => c.id));
+        setSelectedCourses(tutorCourses);
       } catch (error) {
         console.error("Error fetching profile data:", error);
       } finally {
@@ -86,46 +85,6 @@ const TutorProfile = () => {
     };
     fetchData();
   }, [navigate]);
-
-  const handleSave = async () => {
-    setSaving(true);
-    const user = JSON.parse(localStorage.getItem("user") || "{}");
-    const token = localStorage.getItem("token");
-
-    try {
-      // Update profile (including id_number)
-      await fetch(`/api/users/${user.id}`, {
-        method: "PUT",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({
-          name: profile?.name,
-          id_number: profile?.id_number,
-          department_id: profile?.department_id,
-          term: profile?.term,
-        }),
-      });
-
-      // Update courses
-      await fetch(`/api/tutor/${user.id}/courses`, {
-        method: "PUT",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({ courseIds: selectedCourses }),
-      });
-
-      alert("Profile updated successfully");
-    } catch (error) {
-      console.error("Error saving profile:", error);
-      alert("Failed to update profile");
-    } finally {
-      setSaving(false);
-    }
-  };
 
   const getLastSeenText = () => {
     if (!profile?.last_seen) return "Never";
@@ -146,105 +105,57 @@ const TutorProfile = () => {
   return (
     <div className="profile-page">
       <div className="profile-card">
-        {/* Profile Header with Avatar & Basic Info */}
-        <div className="profile-header">
-          <div className="avatar-section">
-            <img src={profile?.avatar_url} alt="Profile" className="avatar" />
-            <div className={`online-indicator ${profile?.is_online ? "online" : "offline"}`}>
+        {/* Avatar & Online Status */}
+        <div className="profile-avatar-section">
+          <div className="avatar-wrapper">
+            <img src={profile?.avatar_url} alt="Profile" className="profile-avatar" />
+            <span className={`online-badge ${profile?.is_online ? "online" : "offline"}`}>
               {profile?.is_online ? "● Online" : "○ Offline"}
-            </div>
-          </div>
-          <div className="header-info">
-            <h1>{profile?.name || "Tutor"}</h1>
-            <p className="last-seen">Last seen: {getLastSeenText()}</p>
+            </span>
           </div>
         </div>
 
-        {/* Profile Form */}
-        <div className="profile-form">
-          <div className="form-row">
-            <div className="form-group">
-              <label>Email</label>
-              <input type="email" value={profile?.email || ""} disabled />
-            </div>
-            <div className="form-group">
-              <label>School ID Number</label>
-              <input
-                type="text"
-                value={profile?.id_number || ""}
-                onChange={(e) => setProfile({ ...profile!, id_number: e.target.value })}
-                placeholder="e.g. S12345678"
-              />
-            </div>
-          </div>
+        {/* Name & Basic Info */}
+        <h1 className="profile-name">{profile?.name || "Tutor"}</h1>
+        <p className="profile-email">{profile?.email}</p>
+        <p className="profile-last-seen">Last seen: {getLastSeenText()}</p>
 
-          <div className="form-row">
-            <div className="form-group">
-              <label>Full Name</label>
-              <input
-                type="text"
-                value={profile?.name || ""}
-                onChange={(e) => setProfile({ ...profile!, name: e.target.value })}
-              />
-            </div>
-            <div className="form-group">
-              <label>Term</label>
-              <input
-                type="text"
-                value={profile?.term || ""}
-                onChange={(e) => setProfile({ ...profile!, term: e.target.value })}
-                placeholder="e.g. Spring 2025"
-              />
-            </div>
+        {/* Details Grid */}
+        <div className="profile-details">
+          <div className="detail-item">
+            <span className="detail-label">School ID</span>
+            <span className="detail-value">{profile?.id_number}</span>
           </div>
-
-          <div className="form-row">
-            <div className="form-group full-width">
-              <label>Department</label>
-              <select
-                value={profile?.department_id || ""}
-                onChange={(e) =>
-                  setProfile({ ...profile!, department_id: parseInt(e.target.value) })
-                }
-              >
-                <option value="">Select Department</option>
-                {departments.map((d) => (
-                  <option key={d.id} value={d.id}>
-                    {d.name}
-                  </option>
-                ))}
-              </select>
-            </div>
+          <div className="detail-item">
+            <span className="detail-label">Semester</span>
+            <span className="detail-value">{profile?.term || "Not set"}</span>
           </div>
+          <div className="detail-item">
+            <span className="detail-label">Department</span>
+            <span className="detail-value">
+              {departments.find(d => d.id === profile?.department_id)?.name || profile?.department || "Not set"}
+            </span>
+          </div>
+        </div>
 
-          <div className="form-group full-width">
-            <label>Courses I Teach</label>
-            <div className="courses-grid">
-              {allCourses.map((course) => (
-                <label key={course.id} className="checkbox-item">
-                  <input
-                    type="checkbox"
-                    checked={selectedCourses.includes(course.id)}
-                    onChange={(e) => {
-                      if (e.target.checked) {
-                        setSelectedCourses([...selectedCourses, course.id]);
-                      } else {
-                        setSelectedCourses(selectedCourses.filter((id) => id !== course.id));
-                      }
-                    }}
-                  />
-                  <span className="course-code">{course.code}</span> – {course.name}
-                </label>
+        {/* Courses Taught */}
+        <div className="courses-section">
+          <h3>Courses I Teach</h3>
+          {selectedCourses.length > 0 ? (
+            <div className="course-chips">
+              {selectedCourses.map((course) => (
+                <span key={course.id} className="course-chip">
+                  {course.code}
+                </span>
               ))}
             </div>
-          </div>
-
-          <div className="form-actions">
-            <button onClick={handleSave} disabled={saving} className="save-btn">
-              {saving ? "Saving..." : "Save Changes"}
-            </button>
-          </div>
+          ) : (
+            <p className="no-courses">No courses selected yet.</p>
+          )}
         </div>
+
+        {/* Optional Edit Button (for future) */}
+        {/* <button className="edit-profile-btn">Edit Profile</button> */}
       </div>
     </div>
   );
