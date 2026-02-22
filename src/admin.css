@@ -21,7 +21,7 @@
 
 .sidebar-header {
   padding: 20px;
-  border-bottom: 1px solid rgba(148, 146, 146, 0.438)
+  border-bottom: 1px solid rgba(148, 146, 146, 0.438);
 }
 
 .sidebar-header h2 {
@@ -40,23 +40,30 @@
   padding: 10px 0;
 }
 
-.sidebar-nav button {
+/* Style for NavLink (renders as <a>) */
+.sidebar-nav a {
+  display: block;
   padding: 15px 20px;
-  background: none;
-  border: none;
-  color: #cfd8e3;
-  text-align: left;
+  color: #facc15; /* yellow */
+  text-decoration: none;
   font-size: 1rem;
-  cursor: pointer;
   transition: all 0.2s ease-in-out;
+  border-left: 4px solid transparent;
+  cursor: pointer;
 }
 
-.sidebar-nav button:hover,
-.sidebar-nav button.active {
+.sidebar-nav a:hover {
   background-color: #2c3e50;
   color: #fff;
-  border-left: 4px solid #007bff;
-  padding-left: 16px;
+  border-left-color: #facc15;
+}
+
+/* Active link */
+.sidebar-nav a.active {
+  background-color: #facc15;
+  color: #1e2a38;
+  border-left-color: #fff;
+  font-weight: 500;
 }
 
 .sidebar-footer {
@@ -191,5 +198,20 @@
   .sidebar-nav {
     flex-direction: row;
     overflow-x: auto;
+  }
+  /* Ensure links are still visible in horizontal mode */
+  .sidebar-nav a {
+    padding: 10px 15px;
+    white-space: nowrap;
+    border-left: none;
+    border-bottom: 3px solid transparent;
+  }
+  .sidebar-nav a:hover {
+    border-bottom-color: #facc15;
+    border-left: none;
+  }
+  .sidebar-nav a.active {
+    border-bottom-color: #fff;
+    border-left: none;
   }
 }

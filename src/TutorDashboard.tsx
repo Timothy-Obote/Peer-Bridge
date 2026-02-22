@@ -76,7 +76,7 @@ const TutorDashboard = () => {
         <h2 className="logo">Tutor Panel</h2>
         <nav className="nav-links">
           <a onClick={() => handleNavigation("/tutor")} className="nav-item">
-            Dashboard
+            Register
           </a>
           <a onClick={() => handleNavigation("/tutor/sessions")} className="nav-item">
             My Sessions
