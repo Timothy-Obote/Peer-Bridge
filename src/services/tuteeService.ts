@@ -1,4 +1,4 @@
-import type { ProgramGroup, Course, TuteeRegistrationData } from '../types/course.types';
+import type { ProgramGroup, Course } from '../types/course.types';
 
 const API_BASE = `${import.meta.env.VITE_API_URL}/api`;
 
@@ -20,15 +20,25 @@ export const tuteeService = {
     },
 
     // Register tutee
-    async registerTutee(data: TuteeRegistrationData) {
+    async registerTutee(data: {
+        email: string;
+        password: string;
+        name: string;
+        id_number: string;          // ✅ matches backend
+        program_level: string;
+        program_id: number;
+        selectedCourses: number[];  // ✅ matches backend
+        term: string;
+        department: string;
+    }) {
         // Debug logs
         console.log('Registration Payload:');
         console.log('Email:', data.email);
         console.log('Name:', data.name);
-        console.log('ID Number:', data.idNumber);
+        console.log('ID Number:', data.id_number);
         console.log('Program Level:', data.program_level);
         console.log('Program ID:', data.program_id);
-        console.log('Selected Courses:', data.selected_courses);
+        console.log('Selected Courses:', data.selectedCourses);
         console.log('Term:', data.term);
         console.log('Department:', data.department);
 
@@ -36,19 +46,17 @@ export const tuteeService = {
             email: data.email,
             password: data.password,
             name: data.name,
-            idNumber: data.idNumber,
+            id_number: data.id_number,
             program_level: data.program_level,
             program_id: data.program_id,
-            selected_courses: data.selected_courses,
+            selectedCourses: data.selectedCourses,
             term: data.term,
             department: data.department
         };
 
         const response = await fetch(`${import.meta.env.VITE_API_URL}/api/tutees`, {
             method: 'POST',
-            headers: { 
-                'Content-Type': 'application/json'
-            },
+            headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(payload)
         });
         

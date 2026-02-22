@@ -1,9 +1,8 @@
-import type { ProgramGroup, Course, TutorRegistrationData } from '../types/course.types';
+import type { ProgramGroup, Course } from '../types/course.types';
 
 const API_BASE = `${import.meta.env.VITE_API_URL}/api`;
 
 export const tutorService = {
-    // Fetch all programs
     async fetchPrograms(): Promise<ProgramGroup> {
         console.log('Fetching programs...');
         const response = await fetch(`${API_BASE}/programs`);
@@ -11,7 +10,6 @@ export const tutorService = {
         return response.json();
     },
 
-    // Fetch courses for specific program
     async fetchProgramCourses(programId: number): Promise<Course[]> {
         console.log(`Fetching courses for program ID: ${programId}`);
         const response = await fetch(`${API_BASE}/programs/${programId}/courses`);
@@ -19,42 +17,50 @@ export const tutorService = {
         return response.json();
     },
 
-    // Register tutor
-    async registerTutor(data: TutorRegistrationData) {
+    async registerTutor(data: {
+        email: string;
+        password: string;
+        name: string;
+        id_number: string;
+        program_level: string;
+        program_id: number;
+        selectedCourses: number[];
+        term: string;
+        department: string;
+    }) {
         console.log('Tutor Registration Payload:');
         console.log('Email:', data.email);
         console.log('Name:', data.name);
+        console.log('ID Number:', data.id_number);
+        console.log('Program Level:', data.program_level);
         console.log('Program ID:', data.program_id);
-        console.log('Selected Courses:', data.selected_courses);
+        console.log('Selected Courses:', data.selectedCourses);
+        console.log('Term:', data.term);
         console.log('Department:', data.department);
 
         const payload = {
             email: data.email,
             password: data.password,
             name: data.name,
-            idNumber: data.idNumber,
-            term: data.term,
+            id_number: data.id_number,
             program_level: data.program_level,
             program_id: data.program_id,
-            selected_courses: data.selected_courses,
+            selectedCourses: data.selectedCourses,
+            term: data.term,
             department: data.department
         };
 
-        const response = await fetch(`${API_BASE}/tutors`, {
+        const response = await fetch(`${import.meta.env.VITE_API_URL}/api/tutors`, {
             method: 'POST',
-            headers: { 
-                'Content-Type': 'application/json'
-            },
+            headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(payload)
         });
-        
+
         const result = await response.json();
-        
         if (!response.ok) {
             console.error('Registration failed:', result.message);
             throw new Error(result.message);
         }
-        
         console.log('Registration successful');
         return result;
     }
