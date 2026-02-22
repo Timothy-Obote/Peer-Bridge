@@ -1,6 +1,6 @@
 const express = require("express");
 const cors = require("cors");
-const pool = require('./db'); // single pool import from db.js
+const pool = require('./db');
 const bcrypt = require("bcrypt");
 const jwt = require("jsonwebtoken");
 const http = require("http");
@@ -172,7 +172,6 @@ app.get('/test-db', async (req, res) => {
 // ============ UPDATED ADMIN OVERVIEW (using new schema) ============
 app.get("/admin/overview", async (req, res) => {
     try {
-        // Fetch all users with their roles and departments
         const users = await pool.query(`
             SELECT u.id, u.email, u.name, u.role, u.program_level, u.term, u.created_at,
                    d.name as department,
@@ -182,7 +181,6 @@ app.get("/admin/overview", async (req, res) => {
             ORDER BY u.created_at DESC
         `);
 
-        // For each user, get their selected courses
         const usersWithCourses = await Promise.all(users.rows.map(async (user) => {
             let courses = [];
             if (user.role === 'tutor') {
@@ -230,7 +228,6 @@ app.post("/signin", async (req, res) => {
         return res.status(400).json({ success: false, message: "Email and password required" });
     }
 
-    // Admin hardcoded (kept for compatibility)
     if (email === "admin@usiu.ac.ke" && password === "PACS1234") {
         const token = jwt.sign(
             { id: 0, email, role: "admin" },
@@ -246,7 +243,6 @@ app.post("/signin", async (req, res) => {
     }
 
     try {
-        // Query the users table
         const result = await pool.query(
             `SELECT id, email, password, name as full_name, role 
              FROM users 
@@ -298,12 +294,158 @@ app.post("/signup", async (req, res) => {
         );
         res.status(201).json({ success: true, message: "User created. Please complete your profile." });
     } catch (error) {
-        if (error.code === '23505') { // unique violation
+        if (error.code === '23505') {
             return res.status(400).json({ success: false, message: "Email already exists" });
         }
         console.error("Signup error:", error);
         res.status(500).json({ success: false, message: "Internal server error" });
     }
+});
+
+// ============ TUTEE REGISTRATION ============
+app.post('/api/tutees', async (req, res) => {
+  const { email, password, name, id_number, program_level, program_id, selectedCourses, term, department } = req.body;
+  
+  if (!email || !password) {
+    return res.status(400).json({ success: false, message: 'Email and password required' });
+  }
+
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+
+    const hashedPassword = await bcrypt.hash(password, 10);
+
+    // Get or create department
+    let deptId = null;
+    if (department) {
+      const deptRes = await client.query('SELECT id FROM departments WHERE name = $1', [department]);
+      if (deptRes.rows.length > 0) {
+        deptId = deptRes.rows[0].id;
+      } else {
+        const newDept = await client.query(
+          'INSERT INTO departments (name) VALUES ($1) RETURNING id',
+          [department]
+        );
+        deptId = newDept.rows[0].id;
+      }
+    }
+
+    // Insert user
+    const userRes = await client.query(
+      `INSERT INTO users (email, password, name, id_number, role, department_id, program_level, program_id, term)
+       VALUES ($1, $2, $3, $4, 'tutee', $5, $6, $7, $8) RETURNING id`,
+      [email, hashedPassword, name, id_number, deptId, program_level, program_id, term]
+    );
+    const userId = userRes.rows[0].id;
+
+    // Insert selected courses
+    if (selectedCourses && Array.isArray(selectedCourses) && selectedCourses.length > 0) {
+      for (const courseId of selectedCourses) {
+        await client.query(
+          'INSERT INTO tutee_courses (tutee_id, course_id) VALUES ($1, $2) ON CONFLICT DO NOTHING',
+          [userId, courseId]
+        );
+      }
+    }
+
+    await client.query('COMMIT');
+
+    const token = jwt.sign(
+      { id: userId, email, role: 'tutee' },
+      process.env.JWT_SECRET,
+      { expiresIn: '1d' }
+    );
+
+    res.status(201).json({
+      success: true,
+      message: 'Tutee registered successfully',
+      user: { id: userId, email, name, role: 'tutee' },
+      token
+    });
+  } catch (err) {
+    await client.query('ROLLBACK');
+    console.error('Tutee registration error:', err);
+    if (err.code === '23505') {
+      return res.status(400).json({ success: false, message: 'Email already exists' });
+    }
+    res.status(500).json({ success: false, message: 'Server error', error: err.message });
+  } finally {
+    client.release();
+  }
+});
+
+// ============ TUTOR REGISTRATION ============
+app.post('/api/tutors', async (req, res) => {
+  const { email, password, name, id_number, program_level, program_id, selectedCourses, term, department } = req.body;
+  
+  if (!email || !password) {
+    return res.status(400).json({ success: false, message: 'Email and password required' });
+  }
+
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+
+    const hashedPassword = await bcrypt.hash(password, 10);
+
+    // Get or create department
+    let deptId = null;
+    if (department) {
+      const deptRes = await client.query('SELECT id FROM departments WHERE name = $1', [department]);
+      if (deptRes.rows.length > 0) {
+        deptId = deptRes.rows[0].id;
+      } else {
+        const newDept = await client.query(
+          'INSERT INTO departments (name) VALUES ($1) RETURNING id',
+          [department]
+        );
+        deptId = newDept.rows[0].id;
+      }
+    }
+
+    // Insert user
+    const userRes = await client.query(
+      `INSERT INTO users (email, password, name, id_number, role, department_id, program_level, program_id, term)
+       VALUES ($1, $2, $3, $4, 'tutor', $5, $6, $7, $8) RETURNING id`,
+      [email, hashedPassword, name, id_number, deptId, program_level, program_id, term]
+    );
+    const userId = userRes.rows[0].id;
+
+    // Insert selected courses (tutor's offerings)
+    if (selectedCourses && Array.isArray(selectedCourses) && selectedCourses.length > 0) {
+      for (const courseId of selectedCourses) {
+        await client.query(
+          'INSERT INTO tutor_courses (tutor_id, course_id) VALUES ($1, $2) ON CONFLICT DO NOTHING',
+          [userId, courseId]
+        );
+      }
+    }
+
+    await client.query('COMMIT');
+
+    const token = jwt.sign(
+      { id: userId, email, role: 'tutor' },
+      process.env.JWT_SECRET,
+      { expiresIn: '1d' }
+    );
+
+    res.status(201).json({
+      success: true,
+      message: 'Tutor registered successfully',
+      user: { id: userId, email, name, role: 'tutor' },
+      token
+    });
+  } catch (err) {
+    await client.query('ROLLBACK');
+    console.error('Tutor registration error:', err);
+    if (err.code === '23505') {
+      return res.status(400).json({ success: false, message: 'Email already exists' });
+    }
+    res.status(500).json({ success: false, message: 'Server error', error: err.message });
+  } finally {
+    client.release();
+  }
 });
 
 // ============ MATCHING LOGIC FUNCTIONS ============
