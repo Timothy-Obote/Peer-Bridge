@@ -130,67 +130,70 @@ const Tutee: React.FC = () => {
     };
 
     const handleSubmit = async (e: React.FormEvent) => {
-        e.preventDefault();
+    e.preventDefault();
 
-        if (!formData.program_level) {
-            showStatus("error", "Please select a program level");
-            return;
-        }
+    if (!formData.program_level) {
+        showStatus("error", "Please select a program level");
+        return;
+    }
 
-        if (!formData.program_id) {
-            showStatus("error", "Please select a program");
-            return;
-        }
+    if (!formData.program_id) {
+        showStatus("error", "Please select a program");
+        return;
+    }
 
-        if (formData.selected_courses.length === 0) {
-            showStatus("error", "Please select at least one course");
-            return;
-        }
+    if (formData.selected_courses.length === 0) {
+        showStatus("error", "Please select at least one course");
+        return;
+    }
 
-        console.log("Submitting registration with department:", formData.department);
+    console.log("Submitting registration with department:", formData.department);
+    console.log("Current formData:", formData); // see what's in the state
 
-        // Map the form data to match backend expectations
-        const submissionData = {
-            email: formData.email,
-            password: formData.password,
-            name: formData.name,
-            id_number: formData.idNumber,          //  map to snake_case
-            program_level: formData.program_level,
-            program_id: formData.program_id,
-            selectedCourses: formData.selected_courses, // map to camelCase
-            term: formData.term,
-            department: formData.department
-        };
-
-        setLoading(prev => ({ ...prev, submit: true }));
-        showStatus("info", "Processing registration...");
-
-        try {
-            await tuteeService.registerTutee(submissionData as any);
-            showStatus("success", "Registration successful! Redirecting...");
-            
-            // Reset form
-            setFormData({
-                email: "",
-                password: "",
-                name: "",
-                idNumber: "",
-                program_level: "",
-                program_id: "",
-                selected_courses: [],
-                term: "FS",
-                department: ""
-            });
-            setAvailableCourses([]);
-
-            setTimeout(() => navigate("/tutee-dashboard"), 2000);
-        } catch (error: any) {
-            showStatus("error", error.message || "Registration failed");
-            console.error("Registration error:", error);
-        } finally {
-            setLoading(prev => ({ ...prev, submit: false }));
-        }
+    // Map the form data to match backend expectations
+    const submissionData = {
+        email: formData.email,
+        password: formData.password,
+        name: formData.name,
+        id_number: formData.idNumber || "",           // fallback to empty string
+        program_level: formData.program_level,
+        program_id: formData.program_id,
+        selectedCourses: formData.selected_courses || [], // fallback to empty array
+        term: formData.term,
+        department: formData.department
     };
+
+    console.log("Submission payload being sent:", submissionData); //  verify payload
+
+    setLoading(prev => ({ ...prev, submit: true }));
+    showStatus("info", "Processing registration...");
+
+    try {
+        await tuteeService.registerTutee(submissionData as any);
+        showStatus("success", "Registration successful! Redirecting...");
+
+        // Reset form
+        setFormData({
+            email: "",
+            password: "",
+            name: "",
+            idNumber: "",
+            program_level: "",
+            program_id: "",
+            selected_courses: [],
+            term: "FS",
+            department: ""
+        });
+        setAvailableCourses([]);
+
+        setTimeout(() => navigate("/tutee-dashboard"), 2000);
+    } catch (error: any) {
+        showStatus("error", error.message || "Registration failed");
+        console.error("Registration error:", error);
+    } finally {
+        setLoading(prev => ({ ...prev, submit: false }));
+    }
+};
 
     const showStatus = (type: string, message: string) => {
         setStatus({ type, message });
