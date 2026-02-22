@@ -94,7 +94,7 @@ const TuteeProfile = () => {
 
     try {
       // Update profile (including id_number)
-      await fetch(`/api/users/${user.id}`, {
+      await fetch(`${import.meta.env.VITE_API_URL}/api/users/${user.id}`, {
         method: "PUT",
         headers: {
           "Content-Type": "application/json",
@@ -109,7 +109,7 @@ const TuteeProfile = () => {
       });
 
       // Update needed courses
-      await fetch(`/api/tutee/${user.id}/courses`, {
+      await fetch(`${import.meta.env.VITE_API_URL}/api/tutee/${user.id}/courses`, {
         method: "PUT",
         headers: {
           "Content-Type": "application/json",
