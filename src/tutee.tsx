@@ -67,19 +67,9 @@ const Tutee: React.FC = () => {
         const response = await fetch(`${import.meta.env.VITE_API_URL}/api/programs/${programId}/courses`);
         if (!response.ok) throw new Error("Failed to fetch courses");
         const data = await response.json();
-        
-        // Log the raw response to see the structure
-        console.log(`Courses for program ${programId}:`, data);
 
-        // Map safely with fallbacks
-        const mapped: Course[] = data.map((c: any) => ({
-            id: c.id,
-            unit_code: c.code || c.course_code || "N/A",
-            unit_name: c.name || c.course_name || "Unknown",
-            credits: 3 // default, adjust if API provides credits
-        }));
-
-        setAvailableCourses(mapped);
+        // The API already returns { id, unit_code, unit_name }
+        setAvailableCourses(data);
 
         // Update department field with selected program's name
         const allPrograms = [...programs.undergraduate, ...programs.graduate];
@@ -94,6 +84,7 @@ const Tutee: React.FC = () => {
         setLoading(prev => ({ ...prev, courses: false }));
     }
 };
+
 
     const handleInputChange = (
         e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>
