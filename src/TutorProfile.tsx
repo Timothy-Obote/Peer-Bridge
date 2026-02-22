@@ -46,33 +46,33 @@ const TutorProfile = () => {
     const fetchData = async () => {
       try {
         // Fetch profile
-        const profileRes = await fetch(`/api/users/${user.id}`, {
+        const profileRes = await fetch(`${import.meta.env.VITE_API_URL}/api/users/${user.id}`, {
           headers: { Authorization: `Bearer ${token}` },
         });
         const profileData = await profileRes.json();
         // Add mock fields if backend doesn't provide them yet
         setProfile({
           ...profileData,
-          id_number: profileData.id_number || "S12345678",
+          id_number: profileData.id_number || "666548",
           avatar_url: profileData.avatar_url || "https://via.placeholder.com/150",
           is_online: profileData.is_online ?? true,
           last_seen: profileData.last_seen || new Date().toISOString(),
         });
 
         // Fetch departments (for department name)
-        const deptRes = await fetch(`/api/departments`, {
+        const deptRes = await fetch(`${import.meta.env.VITE_API_URL}/api/departments`, {
           headers: { Authorization: `Bearer ${token}` },
         });
         setDepartments(await deptRes.json());
 
         // Fetch all courses
-        const coursesRes = await fetch(`/api/courses`, {
+        const coursesRes = await fetch(`${import.meta.env.VITE_API_URL}/api/courses`, {
           headers: { Authorization: `Bearer ${token}` },
         });
         setAllCourses(await coursesRes.json());
 
         // Fetch tutor's current courses (store full course objects)
-        const tutorCoursesRes = await fetch(`/api/tutor/${user.id}/courses`, {
+        const tutorCoursesRes = await fetch(`${import.meta.env.VITE_API_URL}/api/tutor/${user.id}/courses`, {
           headers: { Authorization: `Bearer ${token}` },
         });
         const tutorCourses = await tutorCoursesRes.json();

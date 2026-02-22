@@ -47,21 +47,21 @@ const TuteeProfile = () => {
     const fetchData = async () => {
       try {
         // Fetch profile – extend backend to return id_number, avatar, last_seen, is_online
-        const profileRes = await fetch(`/api/users/${user.id}`, {
+        const profileRes = await fetch(`${import.meta.env.VITE_API_URL}/api/users/${user.id}`, {
           headers: { Authorization: `Bearer ${token}` },
         });
         const profileData = await profileRes.json();
         // Add mock data if backend doesn't provide them yet
         setProfile({
           ...profileData,
-          id_number: profileData.id_number || "S12345678",
+          id_number: profileData.id_number || "666548",
           avatar_url: profileData.avatar_url || "https://via.placeholder.com/150",
           is_online: profileData.is_online ?? true,
           last_seen: profileData.last_seen || new Date().toISOString(),
         });
 
         // Fetch departments
-        const deptRes = await fetch(`/api/departments`, {
+        const deptRes = await fetch(`${import.meta.env.VITE_API_URL}/api/departments`, {
           headers: { Authorization: `Bearer ${token}` },
         });
         setDepartments(await deptRes.json());
@@ -73,7 +73,7 @@ const TuteeProfile = () => {
         setAllCourses(await coursesRes.json());
 
         // Fetch tutee's current needed courses
-        const tuteeCoursesRes = await fetch(`/api/tutee/${user.id}/courses`, {
+        const tuteeCoursesRes = await fetch(`${import.meta.env.VITE_API_URL}/api/tutee/${user.id}/courses`, {
           headers: { Authorization: `Bearer ${token}` },
         });
         const tuteeCourses = await tuteeCoursesRes.json();

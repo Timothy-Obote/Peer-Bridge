@@ -32,14 +32,14 @@ const TutorDashboard = () => {
       try {
         const token = localStorage.getItem("token");
         // Fetch matches for this tutor
-        const matchesRes = await fetch(`/api/matches/${user.id}`, {
+        const matchesRes = await fetch(`${import.meta.env.VITE_API_URL}/api/matches/${user.id}`, {
           headers: { Authorization: `Bearer ${token}` },
         });
         const matches = await matchesRes.json();
         const totalStudents = matches.length;
 
         // Fetch pending suggestions for this tutor
-        const suggestionsRes = await fetch(`/api/suggestions/${user.id}`, {
+        const suggestionsRes = await fetch(`${import.meta.env.VITE_API_URL}/api/suggestions/${user.id}`, {
           headers: { Authorization: `Bearer ${token}` },
         });
         const suggestions = await suggestionsRes.json();

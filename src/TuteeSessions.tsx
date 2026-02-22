@@ -26,14 +26,14 @@ const TuteeSessions = () => {
 
     const fetchMatches = async () => {
       try {
-        const res = await fetch(`/api/matches/tutee/${user.id}`, {
+        const res = await fetch(`${import.meta.env.VITE_API_URL}/api/matches/tutee/${user.id}`, {
           headers: { Authorization: `Bearer ${token}` },
         });
         const data = await res.json();
         // Enrich with tutor names
         const withNames = await Promise.all(
           data.map(async (match: Match) => {
-            const tutorRes = await fetch(`/api/users/${match.tutor_id}`, {
+            const tutorRes = await fetch(`${import.meta.env.VITE_API_URL}/api/users/${match.tutor_id}`, {
               headers: { Authorization: `Bearer ${token}` },
             });
             const tutor = await tutorRes.json();
