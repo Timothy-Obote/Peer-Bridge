@@ -53,7 +53,7 @@ const TuteeProfile = () => {
         setProfile({
           ...profileData,
           id_number: profileData.id_number || "666548",
-          avatar_url: profileData.avatar_url || "https://via.placeholder.com/150",
+          avatar_url: profileData.avatar_url || "https://robohash.org/you?size=150x150",
           is_online: profileData.is_online ?? true,
           last_seen: profileData.last_seen || new Date().toISOString(),
         });
