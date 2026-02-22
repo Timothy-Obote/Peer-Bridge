@@ -7,7 +7,7 @@ import "./tutee.css";
 const Tutee: React.FC = () => {
     const navigate = useNavigate();
 
-    // Form state
+    // Form state (camelCase for internal consistency)
     const [formData, setFormData] = useState<TuteeRegistrationData>({
         email: "",
         password: "",
@@ -62,29 +62,28 @@ const Tutee: React.FC = () => {
     };
 
     const fetchProgramCourses = async (programId: number) => {
-    setLoading(prev => ({ ...prev, courses: true }));
-    try {
-        const response = await fetch(`${import.meta.env.VITE_API_URL}/api/programs/${programId}/courses`);
-        if (!response.ok) throw new Error("Failed to fetch courses");
-        const data = await response.json();
+        setLoading(prev => ({ ...prev, courses: true }));
+        try {
+            const response = await fetch(`${import.meta.env.VITE_API_URL}/api/programs/${programId}/courses`);
+            if (!response.ok) throw new Error("Failed to fetch courses");
+            const data = await response.json();
 
-        // The API already returns { id, unit_code, unit_name }
-        setAvailableCourses(data);
+            // The API already returns { id, unit_code, unit_name }
+            setAvailableCourses(data);
 
-        // Update department field with selected program's name
-        const allPrograms = [...programs.undergraduate, ...programs.graduate];
-        const selectedProgram = allPrograms.find(p => p.id === programId);
-        if (selectedProgram) {
-            setFormData(prev => ({ ...prev, department: selectedProgram.program_name }));
+            // Update department field with selected program's name
+            const allPrograms = [...programs.undergraduate, ...programs.graduate];
+            const selectedProgram = allPrograms.find(p => p.id === programId);
+            if (selectedProgram) {
+                setFormData(prev => ({ ...prev, department: selectedProgram.program_name }));
+            }
+        } catch (error) {
+            console.error("Error fetching courses:", error);
+            showStatus("error", "Could not load courses for this program.");
+        } finally {
+            setLoading(prev => ({ ...prev, courses: false }));
         }
-    } catch (error) {
-        console.error("Error fetching courses:", error);
-        showStatus("error", "Could not load courses for this program.");
-    } finally {
-        setLoading(prev => ({ ...prev, courses: false }));
-    }
-};
-
+    };
 
     const handleInputChange = (
         e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>
@@ -150,13 +149,27 @@ const Tutee: React.FC = () => {
 
         console.log("Submitting registration with department:", formData.department);
 
+        // Map the form data to match backend expectations
+        const submissionData = {
+            email: formData.email,
+            password: formData.password,
+            name: formData.name,
+            id_number: formData.idNumber,          //  map to snake_case
+            program_level: formData.program_level,
+            program_id: formData.program_id,
+            selectedCourses: formData.selected_courses, // map to camelCase
+            term: formData.term,
+            department: formData.department
+        };
+
         setLoading(prev => ({ ...prev, submit: true }));
         showStatus("info", "Processing registration...");
 
         try {
-            await tuteeService.registerTutee(formData);
+            await tuteeService.registerTutee(submissionData as any);
             showStatus("success", "Registration successful! Redirecting...");
             
+            // Reset form
             setFormData({
                 email: "",
                 password: "",
