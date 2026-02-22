@@ -1,8 +1,16 @@
 import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import { tutorService } from "./services/tutorService"
+import { tutorService } from "./services/tutorService";
 import type { Program, Course, TutorRegistrationData } from "./types/course.types";
 import "./tutor.css";
+
+// Extended type for the new course structure from /api/courses
+interface NewCourse {
+  id: number;
+  code: string;
+  name: string;
+  program_name?: string;
+}
 
 const Tutor: React.FC = () => {
     const navigate = useNavigate();
@@ -26,6 +34,7 @@ const Tutor: React.FC = () => {
         graduate: Program[];
     }>({ undergraduate: [], graduate: [] });
 
+    const [allCourses, setAllCourses] = useState<NewCourse[]>([]);
     const [availableCourses, setAvailableCourses] = useState<Course[]>([]);
     const [loading, setLoading] = useState({
         programs: false,
@@ -34,19 +43,20 @@ const Tutor: React.FC = () => {
     });
     const [status, setStatus] = useState({ type: "", message: "" });
 
-    // Fetch programs on component mount
+    // Fetch programs and all courses on mount
     useEffect(() => {
         fetchPrograms();
+        fetchAllCourses();
     }, []);
 
-    // Fetch courses when program is selected
+    // Filter courses when program is selected
     useEffect(() => {
         if (formData.program_id) {
-            fetchProgramCourses(Number(formData.program_id));
+            filterCoursesByProgram(Number(formData.program_id));
         } else {
             setAvailableCourses([]);
         }
-    }, [formData.program_id]);
+    }, [formData.program_id, allCourses, programs]);
 
     const fetchPrograms = async () => {
         setLoading(prev => ({ ...prev, programs: true }));
@@ -61,29 +71,43 @@ const Tutor: React.FC = () => {
         }
     };
 
-    const fetchProgramCourses = async (programId: number) => {
+    const fetchAllCourses = async () => {
         setLoading(prev => ({ ...prev, courses: true }));
         try {
-            const courses = await tutorService.fetchProgramCourses(programId);
-            setAvailableCourses(courses);
-            
-            // Get selected program name and set as department
-            const allPrograms = [...programs.undergraduate, ...programs.graduate];
-            const selectedProgram = allPrograms.find(p => p.id === programId);
-            
-            setFormData(prev => ({ 
-                ...prev, 
-                selected_courses: [],
-                department: selectedProgram?.program_name || ""
-            }));
-            
-            console.log("Department set to:", selectedProgram?.program_name);
+            const response = await fetch(`${import.meta.env.VITE_API_URL}/api/courses`);
+            if (!response.ok) throw new Error("Failed to fetch courses");
+            const data = await response.json();
+            setAllCourses(data);
         } catch (error) {
-            showStatus("error", "Failed to load courses for this program.");
-            console.error("Error fetching courses:", error);
+            console.error("Error fetching all courses:", error);
+            showStatus("error", "Could not load course catalog.");
         } finally {
             setLoading(prev => ({ ...prev, courses: false }));
         }
+    };
+
+    const filterCoursesByProgram = (programId: number) => {
+        const allPrograms = [...programs.undergraduate, ...programs.graduate];
+        const selectedProgram = allPrograms.find(p => p.id === programId);
+        if (!selectedProgram) return;
+
+        // Update department field with program name
+        setFormData(prev => ({ ...prev, department: selectedProgram.program_name }));
+
+        // Filter courses where program_name matches the selected program's name
+        const filtered = allCourses.filter(
+            course => course.program_name === selectedProgram.program_name
+        );
+
+        // Map to the expected Course format (unit_code, unit_name)
+        const mapped: Course[] = filtered.map(c => ({
+            id: c.id,
+            unit_code: c.code,
+            unit_name: c.name,
+            credits: 3 // default, adjust if needed
+        }));
+
+        setAvailableCourses(mapped);
     };
 
     const handleInputChange = (
@@ -116,7 +140,7 @@ const Tutor: React.FC = () => {
             const index = current.indexOf(courseId);
             
             if (index === -1) {
-                if (current.length < 2) { // Changed from 5 to 2
+                if (current.length < 2) {
                     current.push(courseId);
                 } else {
                     showStatus("warning", "Maximum 2 courses allowed per tutor");
@@ -250,7 +274,7 @@ const Tutor: React.FC = () => {
                             </div>
 
                             <div className="form-group">
-                                <label>Student<span className="required">*</span></label>
+                                <label>Student ID <span className="required">*</span></label>
                                 <input
                                     type="text"
                                     name="idNumber"
