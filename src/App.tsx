@@ -1,12 +1,23 @@
 import "./App.css";
-import SignIn from "./SignInForm";               // new page component
+import SignIn from "./SignInForm";
 import LoggedIn from "./LoggedIn";
 import Tutor from "./tutor";
 import Tutee from "./tutee";
 import TutorDashboard from "./TutorDashboard";
+import TutorSessions from "./TutorSessions";
+import TutorMatches from "./TutorMatches";
+import TutorPerformance from "./TutorPerformance";
+import TutorProfile from "./TutorProfile";
 import TuteeDashboard from "./TuteeDashboard";
+import TuteeSessions from "./TuteeSessions";
+import TuteeFeedback from "./TuteeFeedback";
+import TuteeMatches from "./TuteeMatches";
+import TuteeProfile from "./TuteeProfile";
 import AdminDashboard from "./Admin";
-
+import AdminOverview from "./AdminOverview";
+import AdminUsers from "./AdminUsers";
+import AdminReports from "./AdminReports";
+import AdminSettings from "./AdminSettings";
 
 import { useState, useEffect } from "react";
 import {
@@ -18,7 +29,7 @@ import {
 } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 
-// ---------------- HOME COMPONENT ----------------
+// ---------------- HOME COMPONENT (unchanged) ----------------
 function Home() {
   const [hovered, setHovered] = useState<string | null>(null);
   const navigate = useNavigate();
@@ -31,25 +42,20 @@ function Home() {
       "Join study groups, mentorship programs, and peer-driven Q&A forums to grow together.",
   };
 
-  // Navigate to sign-up page (role selection)
   const handleSignUpClick = () => {
     navigate("/dashboard");
   };
 
-  // Navigate to sign-in page (instead of opening modal)
   const handleSignInClick = () => {
     navigate("/signin");
   };
 
-  // Check if user is already logged in (auto-redirect)
   useEffect(() => {
     const user = localStorage.getItem('user');
     if (user) {
       try {
         const userData = JSON.parse(user);
         const role = userData?.role;
-        
-        // FIXED: Use navigate instead of window.location.href
         if (role === 'admin') {
           navigate('/admin-dashboard', { replace: true });
         } else if (role === 'tutor') {
@@ -63,14 +69,13 @@ function Home() {
         localStorage.removeItem('user');
       }
     }
-  }, [navigate]); // Added navigate to dependencies
+  }, [navigate]);
 
   return (
     <div className="app-container">
-      {/* Header */}
+      {/* Header & rest of Home component (unchanged) */}
       <header className="header relative">
         <div className="logo">PeerBridge</div>
-
         <nav className="main-nav">
           {Object.keys(previews).map((item) => (
             <a
@@ -83,7 +88,6 @@ function Home() {
             </a>
           ))}
         </nav>
-
         <AnimatePresence>
           {hovered && (
             <motion.div
@@ -98,7 +102,6 @@ function Home() {
             </motion.div>
           )}
         </AnimatePresence>
-
         <div className="auth-buttons">
           <button className="sign-in" onClick={handleSignInClick}>
             Sign In
@@ -171,7 +174,7 @@ function Home() {
   );
 }
 
-// ---------------- PROTECTED ROUTE COMPONENT ----------------
+// ---------------- PROTECTED ROUTE COMPONENT (unchanged) ----------------
 interface ProtectedRouteProps {
   children: React.ReactNode;
   allowedRoles?: string[];
@@ -181,7 +184,7 @@ function ProtectedRoute({ children, allowedRoles }: ProtectedRouteProps) {
   const user = localStorage.getItem('user');
   
   if (!user) {
-    return <Navigate to="/signin" replace />;   // redirect to signin, not home
+    return <Navigate to="/signin" replace />;
   }
   
   try {
@@ -208,14 +211,14 @@ export default function App() {
       <Routes>
         {/* Public routes */}
         <Route path="/" element={<Home />} />
-        <Route path="/signin" element={<SignIn />} />          {/* new sign-in page */}
+        <Route path="/signin" element={<SignIn />} />
         <Route path="/dashboard" element={<LoggedIn />} />
 
-        {/* Registration forms – public (no protection) */}
+        {/* Registration forms – public */}
         <Route path="/tutor" element={<Tutor />} />
         <Route path="/tutee" element={<Tutee />} />
 
-        {/* Dashboards – protected */}
+        {/* Admin Dashboard with nested routes */}
         <Route
           path="/admin-dashboard"
           element={
@@ -223,7 +226,14 @@ export default function App() {
               <AdminDashboard />
             </ProtectedRoute>
           }
-        />
+        >
+          <Route index element={<AdminOverview />} />
+          <Route path="users" element={<AdminUsers />} />
+          <Route path="reports" element={<AdminReports />} />
+          <Route path="settings" element={<AdminSettings />} />
+        </Route>
+
+        {/* Tutor Dashboard – no nested routes here, but sub-routes are separate */}
         <Route
           path="/tutor-dashboard"
           element={
@@ -232,11 +242,81 @@ export default function App() {
             </ProtectedRoute>
           }
         />
+
+        {/* Tutee Dashboard – separate */}
         <Route
           path="/tutee-dashboard"
           element={
             <ProtectedRoute allowedRoles={['tutee', 'admin']}>
               <TuteeDashboard />
+            </ProtectedRoute>
+          }
+        />
+
+        {/* Tutor sub‑routes */}
+        <Route
+          path="/tutor/sessions"
+          element={
+            <ProtectedRoute allowedRoles={['tutor', 'admin']}>
+              <TutorSessions />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/tutor/matches"
+          element={
+            <ProtectedRoute allowedRoles={['tutor', 'admin']}>
+              <TutorMatches />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/tutor/performance"
+          element={
+            <ProtectedRoute allowedRoles={['tutor', 'admin']}>
+              <TutorPerformance />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/tutor/profile"
+          element={
+            <ProtectedRoute allowedRoles={['tutor', 'admin']}>
+              <TutorProfile />
+            </ProtectedRoute>
+          }
+        />
+
+        {/* Tutee sub‑routes */}
+        <Route
+          path="/tutee/sessions"
+          element={
+            <ProtectedRoute allowedRoles={['tutee', 'admin']}>
+              <TuteeSessions />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/tutee/feedback"
+          element={
+            <ProtectedRoute allowedRoles={['tutee', 'admin']}>
+              <TuteeFeedback />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/tutee/matches"
+          element={
+            <ProtectedRoute allowedRoles={['tutee', 'admin']}>
+              <TuteeMatches />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/tutee/profile"
+          element={
+            <ProtectedRoute allowedRoles={['tutee', 'admin']}>
+              <TuteeProfile />
             </ProtectedRoute>
           }
         />

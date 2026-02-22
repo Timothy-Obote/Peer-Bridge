@@ -1,13 +1,14 @@
 const express = require("express");
 const cors = require("cors");
-const { Pool } = require("pg");
+const pool = require('./db');
 const bcrypt = require("bcrypt");
 const jwt = require("jsonwebtoken");
 const http = require("http");
 const { Server } = require("socket.io");
+const cron = require("node-cron"); // if you want scheduled matching
 require("dotenv").config();
 
-// Import route files
+// Import route files (they may need updating to new schema)
 const programRoutes = require('./routes/programs');
 const tuteeRoutes = require('./routes/tutees');
 const tutorRoutes = require('./routes/tutors');
@@ -23,9 +24,7 @@ app.use(cors({
         'http://localhost:3000',
         'http://localhost:3001',
         'http://localhost:5001',
-        // ADD YOUR ACTUAL VERCEL FRONTEND URL HERE
         'https://peerbridgepacs.vercel.app',
-        // Keep any other preview URLs if needed
         'https://peerbridge-5zyu38rxf-gors-projects-57d8ecd6.vercel.app'
     ],
     credentials: true
@@ -55,7 +54,11 @@ app.get("/", (req, res) => {
             admin: "/admin/overview",
             test_db: "/test-db",
             matches: "/api/matches",
-            debug_programs: "/debug/programs"   // new debug endpoint
+            debug_programs: "/debug/programs",
+            suggestions: "/api/suggestions/:tutorId",           // new
+            accept_suggestion: "/api/suggestions/:id/accept",   // new
+            reject_suggestion: "/api/suggestions/:id/reject",   // new
+            run_matching: "/api/matching/run"                   // new (admin)
         }
     });
 });
@@ -66,7 +69,7 @@ const io = new Server(server, {
         origin: [
             'http://localhost:5173', 
             'http://127.0.0.1:5173',
-            'https://peerbridgepacs.vercel.app'   //  already present
+            'https://peerbridgepacs.vercel.app'
         ],
         credentials: true,
         methods: ["GET", "POST"] 
@@ -90,7 +93,7 @@ pool.connect((err, client, release) => {
     }
 });
 
-// Active socket tracking
+// Active socket tracking (keep as is)
 const activeSockets = new Map();
 io.on("connection", (socket) => {
   console.log("Socket connected:", socket.id);
@@ -104,16 +107,12 @@ io.on("connection", (socket) => {
   });
 });
 
-// ============ ENSURE TABLES (optional) ============
-async function ensureTables() { /* ... (keep as is) ... */ }
-// ensureTables().catch(console.error);
-
-// ============ ROUTES ============
+// ============ ROUTES (old, may still work) ============
 app.use('/api', programRoutes);
 app.use('/', tuteeRoutes);
 app.use('/', tutorRoutes);
 
-// ============ PROGRAM COURSES ENDPOINT ============
+// ============ OLD ENDPOINTS (keep for now) ============
 app.get('/api/programs/:programId/courses', async (req, res) => {
     try {
         const { programId } = req.params;
@@ -129,21 +128,32 @@ app.get('/api/programs/:programId/courses', async (req, res) => {
         `, [programId]);
         res.json(rows);
     } catch (error) {
-        console.error('Error in /api/programs/:programId/courses:', error);  // log full error
+        console.error('Error in /api/programs/:programId/courses:', error);
         res.status(500).json({ message: 'Error fetching courses', error: error.message });
     }
 });
 
-// ============ DEBUG: TEST PROGRAMS LIST ============
-// This will help diagnose if the programs table exists and what data it contains
 app.get('/debug/programs', async (req, res) => {
     try {
-        // Try to query the programs table (adjust table name if needed)
         const { rows } = await pool.query('SELECT * FROM programs LIMIT 10');
         res.json({ success: true, data: rows });
     } catch (error) {
         console.error('Debug programs error:', error);
         res.status(500).json({ success: false, error: error.message });
+    }
+});
+
+app.get('/debug/courses-schema', async (req, res) => {
+    try {
+        const result = await pool.query(`
+            SELECT column_name, data_type 
+            FROM information_schema.columns 
+            WHERE table_name = 'courses_1'
+            ORDER BY ordinal_position;
+        `);
+        res.json({ table: 'courses_1', columns: result.rows });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
     }
 });
 
@@ -163,107 +173,68 @@ app.get('/test-db', async (req, res) => {
     }
 });
 
-app.get('/debug/courses-schema', async (req, res) => {
-    try {
-        const result = await pool.query(`
-            SELECT column_name, data_type 
-            FROM information_schema.columns 
-            WHERE table_name = 'courses_1'
-            ORDER BY ordinal_position;
-        `);
-        res.json({ table: 'courses_1', columns: result.rows });
-    } catch (err) {
-        res.status(500).json({ error: err.message });
-    }
-});
-
-
-
-// ============ ADMIN OVERVIEW ============
-
+// ============ UPDATED ADMIN OVERVIEW (using new schema) ============
 app.get("/admin/overview", async (req, res) => {
     try {
-        // 1. Fetch all tutors
-        const { rows: tutors } = await pool.query(`
-            SELECT 
-                id, 
-                email, 
-                COALESCE(full_name, 'N/A') AS name, 
-                COALESCE(id_number, 'N/A') AS id_number, 
-                COALESCE(term, 'N/A') AS term, 
-                COALESCE(department, 'N/A') AS department,
-                created_at
-            FROM tutors 
-            ORDER BY created_at DESC
+        // Fetch all users with their roles and departments
+        const users = await pool.query(`
+            SELECT u.id, u.email, u.name, u.role, u.program_level, u.term, u.created_at,
+                   d.name as department,
+                   COALESCE(u.program_id::text, 'N/A') as program_id
+            FROM users u
+            LEFT JOIN departments d ON u.department_id = d.id
+            ORDER BY u.created_at DESC
         `);
 
-        // 2. Fetch all tutees
-        const { rows: tutees } = await pool.query(`
-            SELECT 
-                id, 
-                email, 
-                COALESCE(full_name, 'N/A') AS name, 
-                COALESCE(id_number, 'N/A') AS id_number, 
-                COALESCE(term, 'N/A') AS term, 
-                COALESCE(department, 'N/A') AS department,
-                created_at
-            FROM tutees 
-            ORDER BY created_at DESC
-        `);
-
-        // Helper to extract unit codes from selected_courses (jsonb)
-        const getUnits = async (table, id) => {
-            const { rows } = await pool.query(
-                `SELECT selected_courses FROM ${table} WHERE id = $1`,
-                [id]
-            );
-            if (!rows.length || !rows[0].selected_courses) return 'N/A';
-            const courseIds = rows[0].selected_courses; // already parsed by pg
-            if (!Array.isArray(courseIds) || courseIds.length === 0) return 'N/A';
-            const { rows: courses } = await pool.query(`
-                SELECT course_code AS unit_code 
-                FROM courses_1 
-                WHERE id = ANY($1::int[])
-            `, [courseIds]);
-            return courses.map(c => c.unit_code).join(', ') || 'N/A';
-        };
-
-        // 3. Enrich tutors with their selected courses
-        const tutorsWithUnits = await Promise.all(tutors.map(async (tutor) => {
-            const units = await getUnits('tutors', tutor.id);
-            return { ...tutor, units };
+        // For each user, get their selected courses
+        const usersWithCourses = await Promise.all(users.rows.map(async (user) => {
+            let courses = [];
+            if (user.role === 'tutor') {
+                const result = await pool.query(`
+                    SELECT c.code, c.name
+                    FROM tutor_courses tc
+                    JOIN courses c ON tc.course_id = c.id
+                    WHERE tc.tutor_id = $1
+                `, [user.id]);
+                courses = result.rows.map(r => `${r.code} - ${r.name}`).join(', ') || 'None';
+            } else if (user.role === 'tutee') {
+                const result = await pool.query(`
+                    SELECT c.code, c.name
+                    FROM tutee_courses tc
+                    JOIN courses c ON tc.course_id = c.id
+                    WHERE tc.tutee_id = $1
+                `, [user.id]);
+                courses = result.rows.map(r => `${r.code} - ${r.name}`).join(', ') || 'None';
+            }
+            return { ...user, units: courses };
         }));
 
-        // 4. Enrich tutees with their selected courses
-        const tuteesWithUnits = await Promise.all(tutees.map(async (tutee) => {
-            const units = await getUnits('tutees', tutee.id);
-            return { ...tutee, units };
-        }));
+        const tutors = usersWithCourses.filter(u => u.role === 'tutor');
+        const tutees = usersWithCourses.filter(u => u.role === 'tutee');
 
-        // 5. Response
         res.json({
             summary: {
-                total_users: tutorsWithUnits.length + tuteesWithUnits.length,
-                tutors: tutorsWithUnits.length,
-                tutees: tuteesWithUnits.length
+                total_users: usersWithCourses.length,
+                tutors: tutors.length,
+                tutees: tutees.length
             },
-            tutors: tutorsWithUnits,
-            tutees: tuteesWithUnits
+            tutors,
+            tutees
         });
-
     } catch (err) {
         console.error('Admin overview error:', err);
         res.status(500).json({ message: "Server error", error: String(err) });
     }
 });
-// ============ SIGNIN ============
+
+// ============ UPDATED SIGNIN (using users table) ============
 app.post("/signin", async (req, res) => {
     const { email, password } = req.body;
     if (!email || !password) {
         return res.status(400).json({ success: false, message: "Email and password required" });
     }
 
-    // 1. Check for the hardcoded admin
+    // Admin hardcoded (kept for compatibility)
     if (email === "admin@usiu.ac.ke" && password === "PACS1234") {
         const token = jwt.sign(
             { id: 0, email, role: "admin" },
@@ -279,70 +250,58 @@ app.post("/signin", async (req, res) => {
     }
 
     try {
-        // 2. Search in tutors table
-        const tutors = await pool.query(
-            "SELECT id, email, password, full_name, 'tutor' as role FROM tutors WHERE email = $1",
+        // Query the users table
+        const result = await pool.query(
+            `SELECT id, email, password, name as full_name, role 
+             FROM users 
+             WHERE email = $1`,
             [email]
         );
 
-        // 3. Search in tutees table
-        const tutees = await pool.query(
-            "SELECT id, email, password, full_name, 'tutee' as role FROM tutees WHERE email = $1",
-            [email]
-        );
-
-        const userRecord = tutors.rows[0] || tutees.rows[0];
-
+        const userRecord = result.rows[0];
         if (!userRecord) {
             return res.status(401).json({ success: false, message: "Invalid email or password" });
         }
 
-        // 4. Compare password
         const passwordMatch = await bcrypt.compare(password, userRecord.password);
         if (!passwordMatch) {
             return res.status(401).json({ success: false, message: "Invalid email or password" });
         }
 
-        // 5. Remove password from user object
         const { password: _, ...userWithoutPassword } = userRecord;
 
-        // 6. Generate JWT token
         const token = jwt.sign(
             { id: userRecord.id, email: userRecord.email, role: userRecord.role },
             process.env.JWT_SECRET,
             { expiresIn: "1d" }
         );
 
-        // 7. Send response
         res.status(200).json({
             success: true,
             message: "Login successful",
             user: userWithoutPassword,
             token
         });
-
     } catch (error) {
         console.error("Signin error:", error);
         res.status(500).json({ success: false, message: "Internal server error" });
     }
 });
 
-// ============ SIGNUP ============
+// ============ SIGNUP (basic, creates a user with role 'pending') ============
 app.post("/signup", async (req, res) => {
     const { email, password } = req.body;
     if (!email || !password) {
         return res.status(400).json({ success: false, message: "Email and password required" });
     }
     try {
-        // Hash password
         const hashedPassword = await bcrypt.hash(password, 10);
-        // Insert into a users table (you may need to create this table)
-        // This example assumes a 'users' table exists.
+        // Insert into users table with role 'pending' (you may later update after profile completion)
         await pool.query(
             "INSERT INTO users (email, password, role) VALUES ($1, $2, 'pending')",
             [email, hashedPassword]
         );
-        res.status(201).json({ success: true, message: "User created. Please sign in." });
+        res.status(201).json({ success: true, message: "User created. Please complete your profile." });
     } catch (error) {
         if (error.code === '23505') { // unique violation
             return res.status(400).json({ success: false, message: "Email already exists" });
@@ -351,12 +310,303 @@ app.post("/signup", async (req, res) => {
         res.status(500).json({ success: false, message: "Internal server error" });
     }
 });
-// ============ MATCHES PLACEHOLDER ============
-app.get("/api/matches", (req, res) => {
-    res.json([]);
+
+// ============ MATCHING LOGIC FUNCTIONS ============
+const matching = require('./matching'); // we'll create this module separately
+
+// ============ NEW MATCHING ENDPOINTS ============
+
+// Trigger matching manually (admin only – you should add auth middleware)
+app.post('/api/matching/run', async (req, res) => {
+    try {
+        await matching.autoMatch();
+        await matching.generateSuggestions();
+        res.json({ message: 'Matching and suggestions completed' });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
 });
 
-// 404 handler
+// Get pending suggestions for a specific tutor
+app.get('/api/suggestions/:tutorId', async (req, res) => {
+    const { tutorId } = req.params;
+    try {
+        const suggestions = await pool.query(`
+            SELECT s.id, s.tutee_id, s.course_id, c.code, c.name, s.status, s.created_at
+            FROM suggestions s
+            JOIN courses c ON s.course_id = c.id
+            WHERE s.tutor_id = $1 AND s.status = 'pending'
+            ORDER BY s.created_at DESC
+        `, [tutorId]);
+        res.json(suggestions.rows);
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// Accept a suggestion (tutor agrees to teach a new course)
+app.post('/api/suggestions/:id/accept', async (req, res) => {
+    try {
+        const result = await matching.acceptSuggestion(req.params.id);
+        res.json(result);
+    } catch (err) {
+        res.status(400).json({ error: err.message });
+    }
+});
+
+// Reject a suggestion
+app.post('/api/suggestions/:id/reject', async (req, res) => {
+    try {
+        await pool.query(
+            `UPDATE suggestions SET status = 'rejected' WHERE id = $1`,
+            [req.params.id]
+        );
+        res.json({ success: true });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// Get all matches for a user (tutor or tutee)
+app.get('/api/matches/:userId', async (req, res) => {
+    const { userId } = req.params;
+    try {
+        const matches = await pool.query(`
+            SELECT m.id, m.tutor_id, m.tutee_id, m.created_at,
+                   json_agg(json_build_object('code', c.code, 'name', c.name)) as courses
+            FROM matches m
+            JOIN match_courses mc ON m.id = mc.match_id
+            JOIN courses c ON mc.course_id = c.id
+            WHERE m.tutor_id = $1 OR m.tutee_id = $1
+            GROUP BY m.id
+        `, [userId]);
+        res.json(matches.rows);
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// Optional: scheduled matching (runs every hour)
+cron.schedule('0 * * * *', async () => {
+    console.log('Running scheduled matching...');
+    try {
+        await matching.autoMatch();
+        await matching.generateSuggestions();
+    } catch (err) {
+        console.error('Scheduled matching error:', err);
+    }
+});
+
+// ============ TUTEE SPECIFIC ENDPOINTS ============
+
+// Get matches for a specific tutee (by tutee_id)
+app.get('/api/matches/tutee/:tuteeId', authenticateToken, async (req, res) => {
+  const { tuteeId } = req.params;
+  try {
+    const { rows } = await pool.query(`
+      SELECT m.id, m.tutor_id, m.tutee_id, m.created_at,
+             json_agg(json_build_object('code', c.code, 'name', c.name)) as courses
+      FROM matches m
+      JOIN match_courses mc ON m.id = mc.match_id
+      JOIN courses c ON mc.course_id = c.id
+      WHERE m.tutee_id = $1
+      GROUP BY m.id
+    `, [tuteeId]);
+    res.json(rows);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Get pending suggestions for a tutee (where tutee_id = given)
+app.get('/api/suggestions/tutee/:tuteeId', authenticateToken, async (req, res) => {
+  const { tuteeId } = req.params;
+  try {
+    const { rows } = await pool.query(`
+      SELECT s.id, s.tutor_id, s.course_id, c.code, c.name, s.status, s.created_at
+      FROM suggestions s
+      JOIN courses c ON s.course_id = c.id
+      WHERE s.tutee_id = $1 AND s.status = 'pending'
+      ORDER BY s.created_at DESC
+    `, [tuteeId]);
+    res.json(rows);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Get courses needed by a tutee
+app.get('/api/tutee/:id/courses', authenticateToken, async (req, res) => {
+  const { id } = req.params;
+  try {
+    const { rows } = await pool.query(`
+      SELECT c.id, c.code, c.name
+      FROM tutee_courses tc
+      JOIN courses c ON tc.course_id = c.id
+      WHERE tc.tutee_id = $1
+    `, [id]);
+    res.json(rows);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Update (replace) courses needed by a tutee
+app.put('/api/tutee/:id/courses', authenticateToken, async (req, res) => {
+  const { id } = req.params;
+  const { courseIds } = req.body; // array of course ids
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    await client.query('DELETE FROM tutee_courses WHERE tutee_id = $1', [id]);
+    for (const courseId of courseIds) {
+      await client.query(
+        'INSERT INTO tutee_courses (tutee_id, course_id) VALUES ($1, $2)',
+        [id, courseId]
+      );
+    }
+    await client.query('COMMIT');
+    res.json({ success: true });
+  } catch (err) {
+    await client.query('ROLLBACK');
+    res.status(500).json({ error: err.message });
+  } finally {
+    client.release();
+  }
+});
+
+
+
+
+// ============ PROFILE & COURSES ENDPOINTS ============
+
+// Get user by ID (protected)
+app.get('/api/users/:id', authenticateToken, async (req, res) => {
+  // Optional: ensure the user can only access their own profile unless admin
+  if (req.user.id !== parseInt(req.params.id) && req.user.role !== 'admin') {
+    return res.status(403).json({ error: 'Forbidden' });
+  }
+  try {
+    const { id } = req.params;
+    const user = await pool.query(
+      `SELECT u.id, u.email, u.name, u.role, u.department_id, d.name as department,
+              u.program_level, u.term
+       FROM users u
+       LEFT JOIN departments d ON u.department_id = d.id
+       WHERE u.id = $1`,
+      [id]
+    );
+    if (user.rows.length === 0) return res.status(404).json({ error: 'User not found' });
+    res.json(user.rows[0]);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Update user profile (protected)
+app.put('/api/users/:id', authenticateToken, async (req, res) => {
+  if (req.user.id !== parseInt(req.params.id) && req.user.role !== 'admin') {
+    return res.status(403).json({ error: 'Forbidden' });
+  }
+  const { id } = req.params;
+  const { name, department_id, term } = req.body;
+  try {
+    await pool.query(
+      `UPDATE users SET name = $1, department_id = $2, term = $3 WHERE id = $4`,
+      [name, department_id, term, id]
+    );
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Get all departments (public or protected – you decide)
+app.get('/api/departments', async (req, res) => {
+  try {
+    const { rows } = await pool.query('SELECT id, name FROM departments ORDER BY name');
+    res.json(rows);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Get all courses (public or protected)
+app.get('/api/courses', async (req, res) => {
+  try {
+    const { rows } = await pool.query('SELECT id, code, name FROM courses ORDER BY code');
+    res.json(rows);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.get('/api/tutor/:id/courses', async (req, res) => {
+  const { id } = req.params;
+  try {
+    const { rows } = await pool.query(
+      `SELECT c.id, c.code, c.name
+       FROM tutor_courses tc
+       JOIN courses c ON tc.course_id = c.id
+       WHERE tc.tutor_id = $1`,
+      [id]
+    );
+    res.json(rows);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Get courses offered by a specific tutor (protected)
+app.get('/api/tutor/:id/courses', authenticateToken, async (req, res) => {
+  // Allow if it's the tutor themselves or an admin
+  if (req.user.id !== parseInt(req.params.id) && req.user.role !== 'admin') {
+    return res.status(403).json({ error: 'Forbidden' });
+  }
+  const { id } = req.params;
+  try {
+    const { rows } = await pool.query(
+      `SELECT c.id, c.code, c.name
+       FROM tutor_courses tc
+       JOIN courses c ON tc.course_id = c.id
+       WHERE tc.tutor_id = $1`,
+      [id]
+    );
+    res.json(rows);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Update (replace) courses offered by a tutor (protected)
+app.put('/api/tutor/:id/courses', authenticateToken, async (req, res) => {
+  if (req.user.id !== parseInt(req.params.id) && req.user.role !== 'admin') {
+    return res.status(403).json({ error: 'Forbidden' });
+  }
+  const { id } = req.params;
+  const { courseIds } = req.body; // array of course ids
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    // Delete all existing courses for this tutor
+    await client.query('DELETE FROM tutor_courses WHERE tutor_id = $1', [id]);
+    // Insert new ones
+    for (const courseId of courseIds) {
+      await client.query(
+        'INSERT INTO tutor_courses (tutor_id, course_id) VALUES ($1, $2)',
+        [id, courseId]
+      );
+    }
+    await client.query('COMMIT');
+    res.json({ success: true });
+  } catch (err) {
+    await client.query('ROLLBACK');
+    res.status(500).json({ error: err.message });
+  } finally {
+    client.release();
+  }
+});
+// ============ 404 HANDLER ============
 app.use((req, res) => {
     res.status(404).json({ success: false, message: `Route not found: ${req.method} ${req.url}` });
 });

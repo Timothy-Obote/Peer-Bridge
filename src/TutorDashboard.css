@@ -171,6 +171,13 @@ html, body, #root {
   font-weight: bold;
 }
 
+.loading-spinner {
+  text-align: center;
+  padding: 2rem;
+  font-size: 1.2rem;
+  color: #002244;
+}
+
 /* === RESPONSIVE === */
 @media (max-width: 900px) {
   .tutor-dashboard {

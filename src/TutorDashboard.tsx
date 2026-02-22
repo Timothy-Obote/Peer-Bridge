@@ -1,74 +1,128 @@
+import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import "./TutorDashboard.css";
 
+interface SummaryData {
+  totalStudents: number;
+  activeSessions: number;
+  pendingRequests: number;
+}
+
 const TutorDashboard = () => {
   const navigate = useNavigate();
+  const [summary, setSummary] = useState<SummaryData>({
+    totalStudents: 0,
+    activeSessions: 0,
+    pendingRequests: 0,
+  });
+  const [loading, setLoading] = useState(true);
+  const [tutorName, setTutorName] = useState("Tutor");
 
-  // Explicitly define the type for path
+  useEffect(() => {
+    // Get user from localStorage
+    const userStr = localStorage.getItem("user");
+    if (!userStr) {
+      navigate("/");
+      return;
+    }
+    const user = JSON.parse(userStr);
+    setTutorName(user.full_name || "Tutor");
+
+    const fetchSummary = async () => {
+      try {
+        const token = localStorage.getItem("token");
+        // Fetch matches for this tutor
+        const matchesRes = await fetch(`/api/matches/${user.id}`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        const matches = await matchesRes.json();
+        const totalStudents = matches.length;
+
+        // Fetch pending suggestions for this tutor
+        const suggestionsRes = await fetch(`/api/suggestions/${user.id}`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        const suggestions = await suggestionsRes.json();
+        const pendingRequests = suggestions.length;
+
+        setSummary({
+          totalStudents,
+          activeSessions: matches.length, // you can refine this later
+          pendingRequests,
+        });
+      } catch (error) {
+        console.error("Error fetching summary:", error);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchSummary();
+  }, [navigate]);
+
   const handleNavigation = (path: string) => {
     navigate(path);
   };
 
   const handleLogout = () => {
     localStorage.removeItem("user");
+    localStorage.removeItem("token");
     navigate("/");
   };
 
   return (
     <div className="tutor-dashboard">
-      {/* Sidebar Navigation */}
       <aside className="sidebar">
         <h2 className="logo">Tutor Panel</h2>
         <nav className="nav-links">
           <a onClick={() => handleNavigation("/tutor")} className="nav-item">
-            Register
+            Dashboard
           </a>
-          <a onClick={() => handleNavigation("/courses")} className="nav-item">
-            Add Course
-          </a>
-          <a onClick={() => handleNavigation("/sessions")} className="nav-item">
+          <a onClick={() => handleNavigation("/tutor/sessions")} className="nav-item">
             My Sessions
           </a>
-          <a onClick={() => handleNavigation("/performance")} className="nav-item">
+          <a onClick={() => handleNavigation("/tutor/performance")} className="nav-item">
             Performance Reports
           </a>
-          <a onClick={() => handleNavigation("/matches")} className="nav-item">
+          <a onClick={() => handleNavigation("/tutor/matches")} className="nav-item">
             View Matches
           </a>
-          <a onClick={() => handleNavigation("/profile")} className="nav-item">
+          <a onClick={() => handleNavigation("/tutor/profile")} className="nav-item">
             Profile
           </a>
         </nav>
-
         <button className="logout-btn" onClick={handleLogout}>
           Logout
         </button>
       </aside>
 
-      {/* Main Content Area */}
       <main className="main-content">
         <header className="dashboard-header">
-          <h1 style={{ color: 'white' }}>Welcome, Tutor</h1>
+          <h1 style={{ color: 'white' }}>Welcome, {tutorName}</h1>
           <p>
             Manage your tutoring sessions, monitor student requests, and track your
             performance — all in one place.
           </p>
         </header>
 
-        <section className="dashboard-summary">
-          <div className="summary-card">
-            <h3>Total Students</h3>
-            <p>15</p>
-          </div>
-          <div className="summary-card">
-            <h3>Active Sessions</h3>
-            <p>4</p>
-          </div>
-          <div className="summary-card">
-            <h3>Pending Requests</h3>
-            <p>2</p>
-          </div>
-        </section>
+        {loading ? (
+          <div className="loading-spinner">Loading...</div>
+        ) : (
+          <section className="dashboard-summary">
+            <div className="summary-card">
+              <h3>Total Students</h3>
+              <p>{summary.totalStudents}</p>
+            </div>
+            <div className="summary-card">
+              <h3>Active Sessions</h3>
+              <p>{summary.activeSessions}</p>
+            </div>
+            <div className="summary-card">
+              <h3>Pending Requests</h3>
+              <p>{summary.pendingRequests}</p>
+            </div>
+          </section>
+        )}
       </main>
     </div>
   );
