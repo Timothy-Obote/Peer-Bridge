@@ -24,10 +24,10 @@ export const tuteeService = {
         email: string;
         password: string;
         name: string;
-        id_number: string;          // ✅ matches backend
+        id_number: string;          //  matches backend
         program_level: string;
         program_id: number;
-        selectedCourses: number[];  // ✅ matches backend
+        selectedCourses: number[];  // matches backend
         term: string;
         department: string;
     }) {

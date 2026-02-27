@@ -299,7 +299,7 @@ app.post("/signup", async (req, res) => {
     }
 });
 
-// ============ TUTEE REGISTRATION ============
+// ============ TUTEE REGISTRATION (with validation) ============
 app.post('/api/tutees', async (req, res) => {
   const { email, password, name, id_number, program_level, program_id, selectedCourses, term, department } = req.body;
   
@@ -336,8 +336,21 @@ app.post('/api/tutees', async (req, res) => {
     );
     const userId = userRes.rows[0].id;
 
-    // Insert selected courses
+    // Validate that all selected courses belong to the chosen program
     if (selectedCourses && Array.isArray(selectedCourses) && selectedCourses.length > 0) {
+      const { rows: validCourses } = await client.query(
+        `SELECT id FROM courses WHERE program_id = $1 AND id = ANY($2::int[])`,
+        [program_id, selectedCourses]
+      );
+      if (validCourses.length !== selectedCourses.length) {
+        await client.query('ROLLBACK');
+        return res.status(400).json({
+          success: false,
+          message: 'One or more selected courses do not belong to the chosen program'
+        });
+      }
+
+      // Insert selected courses
       for (const courseId of selectedCourses) {
         await client.query(
           'INSERT INTO tutee_courses (tutee_id, course_id) VALUES ($1, $2) ON CONFLICT DO NOTHING',
@@ -372,7 +385,7 @@ app.post('/api/tutees', async (req, res) => {
   }
 });
 
-// ============ TUTOR REGISTRATION ============
+// ============ TUTOR REGISTRATION (with validation) ============
 app.post('/api/tutors', async (req, res) => {
   const { email, password, name, id_number, program_level, program_id, selectedCourses, term, department } = req.body;
   
@@ -409,8 +422,21 @@ app.post('/api/tutors', async (req, res) => {
     );
     const userId = userRes.rows[0].id;
 
-    // Insert selected courses (tutor's offerings)
+    // Validate that all selected courses belong to the chosen program
     if (selectedCourses && Array.isArray(selectedCourses) && selectedCourses.length > 0) {
+      const { rows: validCourses } = await client.query(
+        `SELECT id FROM courses WHERE program_id = $1 AND id = ANY($2::int[])`,
+        [program_id, selectedCourses]
+      );
+      if (validCourses.length !== selectedCourses.length) {
+        await client.query('ROLLBACK');
+        return res.status(400).json({
+          success: false,
+          message: 'One or more selected courses do not belong to the chosen program'
+        });
+      }
+
+      // Insert selected courses (tutor's offerings)
       for (const courseId of selectedCourses) {
         await client.query(
           'INSERT INTO tutor_courses (tutor_id, course_id) VALUES ($1, $2) ON CONFLICT DO NOTHING',

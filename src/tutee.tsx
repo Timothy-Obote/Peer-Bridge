@@ -39,10 +39,12 @@ const Tutee: React.FC = () => {
         fetchPrograms();
     }, []);
 
-    // Fetch courses when program is selected
+    // Fetch courses when program is selected, and reset selected courses
     useEffect(() => {
         if (formData.program_id) {
             fetchProgramCourses(Number(formData.program_id));
+            // Clear previously selected courses when program changes
+            setFormData(prev => ({ ...prev, selected_courses: [] }));
         } else {
             setAvailableCourses([]);
         }

@@ -39,10 +39,12 @@ const Tutor: React.FC = () => {
         fetchPrograms();
     }, []);
 
-    // Fetch courses when program is selected
+    // Fetch courses when program is selected, and reset selected courses
     useEffect(() => {
         if (formData.program_id) {
             fetchProgramCourses(Number(formData.program_id));
+            //  Clear previously selected courses when program changes
+            setFormData(prev => ({ ...prev, selected_courses: [] }));
         } else {
             setAvailableCourses([]);
         }
@@ -130,70 +132,79 @@ const Tutor: React.FC = () => {
     };
 
     const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
+        e.preventDefault();
 
-    if (!formData.program_level) {
-        showStatus("error", "Please select a program level");
-        return;
-    }
+        if (!formData.program_level) {
+            showStatus("error", "Please select a program level");
+            return;
+        }
 
-    if (!formData.program_id) {
-        showStatus("error", "Please select a program");
-        return;
-    }
+        if (!formData.program_id) {
+            showStatus("error", "Please select a program");
+            return;
+        }
 
-    if (formData.selected_courses.length === 0) {
-        showStatus("error", "Please select at least one course");
-        return;
-    }
+        if (formData.selected_courses.length === 0) {
+            showStatus("error", "Please select at least one course");
+            return;
+        }
 
-    console.log("Submitting registration with department:", formData.department);
-    console.log("Current formData:", formData); //  see what's in the state
+        console.log("Submitting registration with department:", formData.department);
+        console.log("Current formData:", formData);
 
-    // Map the form data to match backend expectations
-    const submissionData = {
-        email: formData.email,
-        password: formData.password,
-        name: formData.name,
-        id_number: formData.idNumber || "",           // fallback to empty string
-        program_level: formData.program_level,
-        program_id: formData.program_id,
-        selectedCourses: formData.selected_courses || [], // fallback to empty array
-        term: formData.term,
-        department: formData.department
+        // Map the form data to match backend expectations
+        const submissionData = {
+            email: formData.email,
+            password: formData.password,
+            name: formData.name,
+            id_number: formData.idNumber || "",
+            program_level: formData.program_level,
+            program_id: formData.program_id,
+            selectedCourses: formData.selected_courses || [],
+            term: formData.term,
+            department: formData.department
+        };
+
+        // Enhanced logging: pretty-print the payload to verify selectedCourses
+        console.log('Payload:', JSON.stringify(submissionData, null, 2));
+
+        // Log the actual course names for the selected IDs
+        console.log('Selected course names:', 
+            formData.selected_courses.map(id => {
+                const course = availableCourses.find(c => c.id === id);
+                return course ? `${course.unit_code} - ${course.unit_name}` : `Unknown ID: ${id}`;
+            })
+        );
+
+        setLoading(prev => ({ ...prev, submit: true }));
+        showStatus("info", "Processing registration...");
+
+        try {
+            await tutorService.registerTutor(submissionData as any);
+            showStatus("success", "Registration successful! Redirecting...");
+
+            // Reset form
+            setFormData({
+                email: "",
+                password: "",
+                name: "",
+                idNumber: "",
+                program_level: "",
+                program_id: "",
+                selected_courses: [],
+                term: "FS",
+                department: ""
+            });
+            setAvailableCourses([]);
+
+            setTimeout(() => navigate("/tutor-dashboard"), 2000);
+        } catch (error: any) {
+            showStatus("error", error.message || "Registration failed");
+            console.error("Registration error:", error);
+        } finally {
+            setLoading(prev => ({ ...prev, submit: false }));
+        }
     };
-
-    console.log("Submission payload being sent:", submissionData); // verify payload
-
-    setLoading(prev => ({ ...prev, submit: true }));
-    showStatus("info", "Processing registration...");
-
-    try {
-        await tutorService.registerTutor(submissionData as any);
-        showStatus("success", "Registration successful! Redirecting...");
-
-        // Reset form
-        setFormData({
-            email: "",
-            password: "",
-            name: "",
-            idNumber: "",
-            program_level: "",
-            program_id: "",
-            selected_courses: [],
-            term: "FS",
-            department: ""
-        });
-        setAvailableCourses([]);
-
-        setTimeout(() => navigate("/tutor-dashboard"), 2000);
-    } catch (error: any) {
-        showStatus("error", error.message || "Registration failed");
-        console.error("Registration error:", error);
-    } finally {
-        setLoading(prev => ({ ...prev, submit: false }));
-    }
-};
 
     const showStatus = (type: string, message: string) => {
         setStatus({ type, message });
