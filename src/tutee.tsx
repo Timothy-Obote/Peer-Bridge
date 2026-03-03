@@ -70,8 +70,15 @@ const Tutee: React.FC = () => {
             if (!response.ok) throw new Error("Failed to fetch courses");
             const data = await response.json();
 
-            // The API already returns { id, unit_code, unit_name }
-            setAvailableCourses(data);
+            // Transform the response to match expected Course type
+            const transformedCourses: Course[] = data.map((item: any) => ({
+                id: item.id,
+                unit_code: item.code,   // map backend 'code' to 'unit_code'
+                unit_name: item.name,   // map backend 'name' to 'unit_name'
+                credits: item.credits || 3 // default credits if not provided
+            }));
+
+            setAvailableCourses(transformedCourses);
 
             // Update department field with selected program's name
             const allPrograms = [...programs.undergraduate, ...programs.graduate];
@@ -494,10 +501,10 @@ const Tutee: React.FC = () => {
                 {status.message && (
                     <div className={`notification-panel ${status.type}`}>
                         <div className="notification-icon">
-                            {status.type === 'success' && '✓'}
-                            {status.type === 'error' && '✗'}
-                            {status.type === 'warning' && '⚠'}
-                            {status.type === 'info' && 'ℹ'}
+                            {status.type === 'success'}
+                            {status.type === 'error'}
+                            {status.type === 'warning'}
+                            {status.type === 'info'}
                         </div>
                         <div className="notification-content">
                             <span className="notification-title">

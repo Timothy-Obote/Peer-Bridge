@@ -43,7 +43,7 @@ const Tutor: React.FC = () => {
     useEffect(() => {
         if (formData.program_id) {
             fetchProgramCourses(Number(formData.program_id));
-            //  Clear previously selected courses when program changes
+            // Clear previously selected courses when program changes
             setFormData(prev => ({ ...prev, selected_courses: [] }));
         } else {
             setAvailableCourses([]);
@@ -70,8 +70,15 @@ const Tutor: React.FC = () => {
             if (!response.ok) throw new Error("Failed to fetch courses");
             const data = await response.json();
 
-            // The API already returns { id, unit_code, unit_name }
-            setAvailableCourses(data);
+            // Transform the response to match expected Course type
+            const transformedCourses: Course[] = data.map((item: any) => ({
+                id: item.id,
+                unit_code: item.code,   // map backend 'code' to 'unit_code'
+                unit_name: item.name,   // map backend 'name' to 'unit_name'
+                credits: item.credits || 3 // default credits if not provided
+            }));
+
+            setAvailableCourses(transformedCourses);
 
             // Update department field with selected program's name
             const allPrograms = [...programs.undergraduate, ...programs.graduate];
@@ -165,7 +172,6 @@ const Tutor: React.FC = () => {
             department: formData.department
         };
 
-        // Enhanced logging: pretty-print the payload to verify selectedCourses
         console.log('Payload:', JSON.stringify(submissionData, null, 2));
 
         // Log the actual course names for the selected IDs
@@ -505,10 +511,10 @@ const Tutor: React.FC = () => {
                 {status.message && (
                     <div className={`notification-panel ${status.type}`}>
                         <div className="notification-icon">
-                            {status.type === 'success' && '✓'}
-                            {status.type === 'error' && '✗'}
-                            {status.type === 'warning' && '⚠'}
-                            {status.type === 'info' && 'ℹ'}
+                            {status.type === 'success'}
+                            {status.type === 'error'}
+                            {status.type === 'warning'}
+                            {status.type === 'info'}
                         </div>
                         <div className="notification-content">
                             <span className="notification-title">
