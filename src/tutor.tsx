@@ -64,35 +64,28 @@ const Tutor: React.FC = () => {
     };
 
     const fetchProgramCourses = async (programId: number) => {
-        setLoading(prev => ({ ...prev, courses: true }));
-        try {
-            const response = await fetch(`${import.meta.env.VITE_API_URL}/api/programs/${programId}/courses`);
-            if (!response.ok) throw new Error("Failed to fetch courses");
-            const data = await response.json();
+    setLoading(prev => ({ ...prev, courses: true }));
+    try {
+        const response = await fetch(`${import.meta.env.VITE_API_URL}/api/programs/${programId}/courses`);
+        if (!response.ok) throw new Error("Failed to fetch courses");
+        const data = await response.json();
 
-            // Transform the response to match expected Course type
-            const transformedCourses: Course[] = data.map((item: any) => ({
-                id: item.id,
-                unit_code: item.code,   // map backend 'code' to 'unit_code'
-                unit_name: item.name,   // map backend 'name' to 'unit_name'
-                credits: item.credits || 3 // default credits if not provided
-            }));
+        // The API already returns { id, unit_code, unit_name }
+        setAvailableCourses(data);
 
-            setAvailableCourses(transformedCourses);
-
-            // Update department field with selected program's name
-            const allPrograms = [...programs.undergraduate, ...programs.graduate];
-            const selectedProgram = allPrograms.find(p => p.id === programId);
-            if (selectedProgram) {
-                setFormData(prev => ({ ...prev, department: selectedProgram.program_name }));
-            }
-        } catch (error) {
-            console.error("Error fetching courses:", error);
-            showStatus("error", "Could not load courses for this program.");
-        } finally {
-            setLoading(prev => ({ ...prev, courses: false }));
+        // Update department field with selected program's name
+        const allPrograms = [...programs.undergraduate, ...programs.graduate];
+        const selectedProgram = allPrograms.find(p => p.id === programId);
+        if (selectedProgram) {
+            setFormData(prev => ({ ...prev, department: selectedProgram.program_name }));
         }
-    };
+    } catch (error) {
+        console.error("Error fetching courses:", error);
+        showStatus("error", "Could not load courses for this program.");
+    } finally {
+        setLoading(prev => ({ ...prev, courses: false }));
+    }
+};
 
     const handleInputChange = (
         e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>
