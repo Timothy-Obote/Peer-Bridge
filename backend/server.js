@@ -323,6 +323,18 @@ app.post('/api/tutees', async (req, res) => {
     const userId = userRes.rows[0].id;
 
     // Insert selected courses (NO VALIDATION)
+if (selectedCourses && Array.isArray(selectedCourses) && selectedCourses.length > 0) {
+  console.log('Attempting to insert courses:', selectedCourses); // ADD THIS
+  for (const courseId of selectedCourses) {
+    console.log(`Checking course ID ${courseId} exists...`); // ADD THIS
+    await client.query(
+      'INSERT INTO tutee_courses (tutee_id, course_id) VALUES ($1, $2) ON CONFLICT DO NOTHING',
+      [userId, courseId]
+    );
+  }
+}
+
+    // Insert selected courses (NO VALIDATION)
     if (selectedCourses && Array.isArray(selectedCourses) && selectedCourses.length > 0) {
       for (const courseId of selectedCourses) {
         await client.query(
