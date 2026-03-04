@@ -53,7 +53,12 @@ const Tutor: React.FC = () => {
         setLoading(prev => ({ ...prev, programs: true }));
         try {
             const data = await tutorService.fetchPrograms();
-            setPrograms(data);
+            if (data && (data.undergraduate || data.graduate)) {
+                setPrograms(data);
+            } else {
+                console.error("Invalid programs data format:", data);
+                showStatus("error", "Failed to load programs. Invalid data format.");
+            }
         } catch (error) {
             showStatus("error", "Failed to load programs. Please refresh.");
             console.error("Error fetching programs:", error);
@@ -66,34 +71,54 @@ const Tutor: React.FC = () => {
         setLoading(prev => ({ ...prev, courses: true }));
         try {
             const response = await fetch(`${import.meta.env.VITE_API_URL}/api/programs/${programId}/courses`);
-            if (!response.ok) throw new Error("Failed to fetch courses");
+            
+            if (!response.ok) {
+                throw new Error(`Failed to fetch courses: ${response.status}`);
+            }
+            
             const data = await response.json();
             
-            // Log raw API response for debugging
-            console.log("Raw API response:", data);
-            
-            // Transform API response to match Course type
-            // Backend returns { id, code, name }
-            // Frontend expects { id, unit_code, unit_name }
-            const transformedCourses: Course[] = data.map((item: any) => ({
-                id: item.id,
-                unit_code: item.code,      // Map 'code' to 'unit_code'
-                unit_name: item.name,      // Map 'name' to 'unit_name'
-                credits: 3                  // Default credits
-            }));
-            
+            console.log("API Response:", data);
+
+            // Ensure data is an array
+            if (!Array.isArray(data)) {
+                console.error("API response is not an array:", data);
+                setAvailableCourses([]);
+                showStatus("error", "Invalid courses data received.");
+                return;
+            }
+
+            // Transform the data to match Course interface
+            const transformedCourses: Course[] = data.map(item => {
+                // Log each item for debugging
+                console.log("Course item:", item);
+
+                return {
+                    id: item.id || 0,
+                    unit_code: item.code || item.unit_code || item.course_code || "N/A",
+                    unit_name: item.name || item.unit_name || item.course_name || "Unknown Course",
+                    credits: item.credits || 3
+                };
+            });
+
             console.log("Transformed courses:", transformedCourses);
             setAvailableCourses(transformedCourses);
 
             // Update department field
-            const allPrograms = [...programs.undergraduate, ...programs.graduate];
-            const selectedProgram = allPrograms.find(p => p.id === programId);
-            if (selectedProgram) {
-                setFormData(prev => ({ ...prev, department: selectedProgram.program_name }));
+            if (programs?.undergraduate || programs?.graduate) {
+                const allPrograms = [
+                    ...(programs.undergraduate || []), 
+                    ...(programs.graduate || [])
+                ];
+                const selectedProgram = allPrograms.find(p => p.id === programId);
+                if (selectedProgram) {
+                    setFormData(prev => ({ ...prev, department: selectedProgram.program_name }));
+                }
             }
         } catch (error) {
             console.error("Error fetching courses:", error);
             showStatus("error", "Could not load courses for this program.");
+            setAvailableCourses([]);
         } finally {
             setLoading(prev => ({ ...prev, courses: false }));
         }
@@ -113,13 +138,6 @@ const Tutor: React.FC = () => {
                 department: ""
             }));
             setAvailableCourses([]);
-        }
-        
-        if (name === "program_id" && !value) {
-            setFormData(prev => ({ 
-                ...prev, 
-                department: ""
-            }));
         }
     };
 
@@ -146,6 +164,7 @@ const Tutor: React.FC = () => {
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
 
+        // Validation
         if (!formData.program_level) {
             showStatus("error", "Please select a program level");
             return;
@@ -161,19 +180,7 @@ const Tutor: React.FC = () => {
             return;
         }
 
-        console.log("Submitting registration:", formData);
-
-        // Validate that selected courses exist in availableCourses
-        const invalidCourses = formData.selected_courses.filter(
-            id => !availableCourses.some(c => c.id === id)
-        );
-
-        if (invalidCourses.length > 0) {
-            showStatus("error", `Invalid course IDs: ${invalidCourses.join(', ')}`);
-            return;
-        }
-
-        // Map to backend expectations
+        // Prepare submission data
         const submissionData = {
             email: formData.email,
             password: formData.password,
@@ -183,18 +190,19 @@ const Tutor: React.FC = () => {
             program_id: formData.program_id,
             selectedCourses: formData.selected_courses,
             term: formData.term,
-            department: formData.department
+            department: formData.department || "PACS Department"
         };
 
-        console.log('Submitting payload:', submissionData);
+        console.log("Submitting:", submissionData);
 
         setLoading(prev => ({ ...prev, submit: true }));
         showStatus("info", "Processing registration...");
 
         try {
-            await tutorService.registerTutor(submissionData as any);
+            await tutorService.registerTutor(submissionData);
             showStatus("success", "Registration successful! Redirecting...");
 
+            // Reset form
             setFormData({
                 email: "",
                 password: "",
@@ -210,8 +218,8 @@ const Tutor: React.FC = () => {
 
             setTimeout(() => navigate("/tutor-dashboard"), 2000);
         } catch (error: any) {
-            showStatus("error", error.message || "Registration failed");
             console.error("Registration error:", error);
+            showStatus("error", error.message || "Registration failed");
         } finally {
             setLoading(prev => ({ ...prev, submit: false }));
         }
@@ -222,12 +230,6 @@ const Tutor: React.FC = () => {
         setTimeout(() => setStatus({ type: "", message: "" }), 5000);
     };
 
-    const getSelectedProgramName = () => {
-        if (!formData.program_id) return "";
-        const allPrograms = [...programs.undergraduate, ...programs.graduate];
-        const program = allPrograms.find(p => p.id === formData.program_id);
-        return program?.program_name || "";
-    };
 
     return (
         <div className="tutor-container">
@@ -238,70 +240,61 @@ const Tutor: React.FC = () => {
                 </div>
 
                 <form onSubmit={handleSubmit} className="tutor-form">
-                    {/* SECTION 1: PERSONAL INFORMATION */}
+                    {/* Personal Information */}
                     <div className="form-section">
-                        <div className="section-title">
-                            <span className="section-number">01</span>
-                            <h3>Personal Information</h3>
-                        </div>
-                        
+                        <h3>Personal Information</h3>
                         <div className="form-grid">
-                            <div className="form-group full-width">
-                                <label>Full Name <span className="required">*</span></label>
+                            <div className="form-group">
+                                <label>Full Name *</label>
                                 <input
                                     type="text"
                                     name="name"
                                     value={formData.name}
                                     onChange={handleInputChange}
-                                    placeholder="As appears on official documents"
                                     required
                                     disabled={loading.submit}
                                 />
                             </div>
 
                             <div className="form-group">
-                                <label>Email Address <span className="required">*</span></label>
+                                <label>Email *</label>
                                 <input
                                     type="email"
                                     name="email"
                                     value={formData.email}
                                     onChange={handleInputChange}
-                                    placeholder="tutor@usiu.co.ke"
                                     required
                                     disabled={loading.submit}
                                 />
                             </div>
 
                             <div className="form-group">
-                                <label>Password <span className="required">*</span></label>
+                                <label>Password *</label>
                                 <input
                                     type="password"
                                     name="password"
                                     value={formData.password}
                                     onChange={handleInputChange}
-                                    placeholder="Create secure password"
                                     required
-                                    disabled={loading.submit}
                                     minLength={6}
+                                    disabled={loading.submit}
                                 />
-                                <span className="field-hint">Minimum 6 characters</span>
                             </div>
 
                             <div className="form-group">
-                                <label>Student ID <span className="required">*</span></label>
+                                <label>Student ID *</label>
                                 <input
                                     type="text"
                                     name="idNumber"
                                     value={formData.idNumber}
                                     onChange={handleInputChange}
-                                    placeholder="ID number"
                                     required
                                     disabled={loading.submit}
                                 />
                             </div>
 
                             <div className="form-group">
-                                <label>Academic Semester <span className="required">*</span></label>
+                                <label>Semester *</label>
                                 <select
                                     name="term"
                                     value={formData.term}
@@ -309,56 +302,45 @@ const Tutor: React.FC = () => {
                                     required
                                     disabled={loading.submit}
                                 >
-                                    <option value="FS">Fall Semester (FS)</option>
-                                    <option value="SS">Summer Semester (SS)</option>
-                                    <option value="US">Spring Semester (US)</option>
+                                    <option value="FS">Fall Semester</option>
+                                    <option value="SS">Summer Semester</option>
+                                    <option value="US">Spring Semester</option>
                                 </select>
                             </div>
                         </div>
                     </div>
 
-                    {/* SECTION 2: ACADEMIC PROGRAM */}
+                    {/* Academic Program */}
                     <div className="form-section">
-                        <div className="section-title">
-                            <span className="section-number">02</span>
-                            <h3>Academic Program</h3>
-                            <div className="credit-badge">
-                                <span className="credit-text">Tutor Application</span>
-                            </div>
-                        </div>
-
+                        <h3>Academic Program</h3>
                         <div className="form-grid">
                             <div className="form-group">
-                                <label>Program Level <span className="required">*</span></label>
+                                <label>Program Level *</label>
                                 <select
                                     name="program_level"
                                     value={formData.program_level}
                                     onChange={handleInputChange}
                                     required
                                     disabled={loading.programs || loading.submit}
-                                    className={loading.programs ? "loading" : ""}
                                 >
                                     <option value="">Select Program Level</option>
-                                    <option value="undergraduate">Undergraduate (Bachelor's Degree)</option>
-                                    <option value="graduate">Graduate (Master's/Doctoral)</option>
+                                    <option value="undergraduate">Undergraduate</option>
+                                    <option value="graduate">Graduate</option>
                                 </select>
-                                {loading.programs && (
-                                    <span className="field-hint loading-hint">Loading programs...</span>
-                                )}
                             </div>
 
                             {formData.program_level && (
                                 <div className="form-group">
-                                    <label>Degree Program <span className="required">*</span></label>
+                                    <label>Degree Program *</label>
                                     <select
                                         name="program_id"
                                         value={formData.program_id}
                                         onChange={handleInputChange}
                                         required
-                                        disabled={loading.programs || !programs[formData.program_level].length || loading.submit}
+                                        disabled={loading.programs || loading.submit}
                                     >
-                                        <option value="">Select Your Degree Program</option>
-                                        {programs[formData.program_level].map((program) => (
+                                        <option value="">Select Program</option>
+                                        {programs[formData.program_level]?.map(program => (
                                             <option key={program.id} value={program.id}>
                                                 {program.program_name}
                                             </option>
@@ -369,140 +351,47 @@ const Tutor: React.FC = () => {
                         </div>
                     </div>
 
-                    {/* SECTION 3: COURSE SELECTION */}
+                    {/* Course Selection */}
                     {formData.program_id && (
                         <div className="form-section">
-                            <div className="section-title">
-                                <span className="section-number">03</span>
-                                <h3>Course Selection</h3>
-                                <div className="credit-badge">
-                                    <span className="credit-text">{formData.selected_courses.length} / 2 Courses Selected</span>
-                                </div>
-                            </div>
-
-                            <div className="program-info-panel">
-                                <div className="program-info-row">
-                                    <span className="info-label">Program of Study:</span>
-                                    <span className="info-value">{getSelectedProgramName()}</span>
-                                </div>
-                                <div className="program-info-row">
-                                    <span className="info-label">Department:</span>
-                                    <span className="info-value">{formData.department || getSelectedProgramName()}</span>
-                                </div>
-                                <div className="program-info-row highlight">
-                                    <span className="info-label">Course Load:</span>
-                                    <span className="info-value">
-                                        {formData.selected_courses.length} Course(s) Selected
-                                    </span>
-                                </div>
-                            </div>
-
+                            <h3>Course Selection ({formData.selected_courses.length}/2)</h3>
+                            
                             {loading.courses ? (
-                                <div className="academic-loading">
-                                    <div className="academic-spinner"></div>
-                                    <p>Loading course catalog...</p>
-                                </div>
+                                <div>Loading courses...</div>
+                            ) : availableCourses.length === 0 ? (
+                                <div>No courses available for this program</div>
                             ) : (
-                                <>
-                                    {availableCourses.length === 0 ? (
-                                        <div className="empty-state">
-                                            <h4>No Courses Available</h4>
-                                            <p>This program currently has no available courses.</p>
+                                <div className="courses-grid">
+                                    {availableCourses.map(course => (
+                                        <div
+                                            key={course.id}
+                                            className={`course-card ${formData.selected_courses.includes(course.id) ? 'selected' : ''}`}
+                                            onClick={() => handleCourseToggle(course.id)}
+                                        >
+                                            <div>{course.unit_code}</div>
+                                            <div>{course.unit_name}</div>
+                                            <div>{course.credits} credits</div>
                                         </div>
-                                    ) : (
-                                        <div className="courses-table-wrapper">
-                                            <table className="courses-table">
-                                                <thead>
-                                                    <tr>
-                                                        <th style={{ width: "5%" }}></th>
-                                                        <th style={{ width: "20%" }}>Course Code</th>
-                                                        <th style={{ width: "65%" }}>Course Title</th>
-                                                        <th style={{ width: "10%" }}>Credits</th>
-                                                    </tr>
-                                                </thead>
-                                                <tbody>
-                                                    {availableCourses.map((course) => {
-                                                        const isSelected = formData.selected_courses.includes(course.id);
-                                                        const isDisabled = formData.selected_courses.length >= 2 && !isSelected;
-                                                        
-                                                        return (
-                                                            <tr 
-                                                                key={course.id}
-                                                                onClick={() => !loading.submit && !isDisabled && handleCourseToggle(course.id)}
-                                                                className={`
-                                                                    ${isSelected ? 'selected-row' : ''}
-                                                                    ${isDisabled ? 'disabled-row' : ''}
-                                                                    ${!isDisabled && !isSelected ? 'selectable-row' : ''}
-                                                                `}
-                                                            >
-                                                                <td className="checkbox-cell">
-                                                                    <div className={`custom-checkbox ${isSelected ? 'checked' : ''}`}>
-                                                                        {isSelected && '✓'}
-                                                                    </div>
-                                                                </td>
-                                                                <td className="code-cell">
-                                                                    <span className="course-code-badge">{course.unit_code}</span>
-                                                                </td>
-                                                                <td className="title-cell">
-                                                                    <span className="course-title">{course.unit_name}</span>
-                                                                </td>
-                                                                <td className="credits-cell">
-                                                                    <span className="credit-badge">{course.credits || 3}</span>
-                                                                </td>
-                                                            </tr>
-                                                        );
-                                                    })}
-                                                </tbody>
-                                            </table>
-                                            <div className="table-footer">
-                                                <span className="footer-note">
-                                                    Maximum 2 courses per tutor. Click on a row to select/deselect.
-                                                </span>
-                                            </div>
-                                        </div>
-                                    )}
-                                </>
+                                    ))}
+                                </div>
                             )}
                         </div>
                     )}
 
-                    {/* SUBMIT SECTION */}
-                    <div className="form-footer">
-                        <button
-                            type="submit"
-                            disabled={
-                                loading.submit ||
-                                formData.selected_courses.length === 0 ||
-                                !formData.program_id ||
-                                loading.courses
-                            }
-                            className={`submit-button ${loading.submit ? 'submitting' : ''}`}
-                            style={{ backgroundColor: '#FFC800', color: '#000000' }}
-                        >
-                            {loading.submit ? (
-                                <>
-                                    <span className="button-spinner"></span>
-                                    Processing Registration...
-                                </>
-                            ) : (
-                                "Submit Tutor Application"
-                            )}
-                        </button>
-                    </div>
+                    {/* Submit */}
+                    <button
+                        type="submit"
+                        disabled={loading.submit || formData.selected_courses.length === 0}
+                        className="submit-button"
+                    >
+                        {loading.submit ? "Processing..." : "Register as Tutor"}
+                    </button>
                 </form>
 
-                {/* STATUS NOTIFICATIONS */}
+                {/* Status Messages */}
                 {status.message && (
-                    <div className={`notification-panel ${status.type}`}>
-                        <div className="notification-content">
-                            <span className="notification-title">
-                                {status.type === 'success' && 'Success'}
-                                {status.type === 'error' && 'Error'}
-                                {status.type === 'warning' && 'Warning'}
-                                {status.type === 'info' && 'Notice'}
-                            </span>
-                            <span className="notification-message">{status.message}</span>
-                        </div>
+                    <div className={`status-message ${status.type}`}>
+                        {status.message}
                     </div>
                 )}
             </div>
