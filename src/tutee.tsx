@@ -7,7 +7,7 @@ import "./tutee.css";
 const Tutee: React.FC = () => {
     const navigate = useNavigate();
 
-    // Form state
+    // Form state (camelCase for internal consistency)
     const [formData, setFormData] = useState<TuteeRegistrationData>({
         email: "",
         password: "",
@@ -39,7 +39,7 @@ const Tutee: React.FC = () => {
         fetchPrograms();
     }, []);
 
-    // Fetch courses when program is selected
+    // Fetch courses when program is selected, and reset selected courses
     useEffect(() => {
         if (formData.program_id) {
             fetchProgramCourses(Number(formData.program_id));
@@ -68,24 +68,17 @@ const Tutee: React.FC = () => {
             const response = await fetch(`${import.meta.env.VITE_API_URL}/api/programs/${programId}/courses`);
             if (!response.ok) throw new Error("Failed to fetch courses");
             const data = await response.json();
-            
-            // Log raw API response for debugging
-            console.log("Raw API response:", data);
-            
-            // Transform API response to match Course type
-            // Backend returns { id, code, name }
-            // Frontend expects { id, unit_code, unit_name }
+
+            // Transform API response to match Course interface
             const transformedCourses: Course[] = data.map((item: any) => ({
                 id: item.id,
-                unit_code: item.code,      // Map 'code' to 'unit_code'
-                unit_name: item.name,      // Map 'name' to 'unit_name'
-                credits: 3                  // Default credits
+                unit_code: item.code || item.unit_code || "",
+                unit_name: item.name || item.unit_name || "",
+                credits: item.credits || 3
             }));
-            
-            console.log("Transformed courses:", transformedCourses);
+
             setAvailableCourses(transformedCourses);
 
-            // Update department field
             const allPrograms = [...programs.undergraduate, ...programs.graduate];
             const selectedProgram = allPrograms.find(p => p.id === programId);
             if (selectedProgram) {
@@ -161,19 +154,9 @@ const Tutee: React.FC = () => {
             return;
         }
 
-        console.log("Submitting registration:", formData);
+        console.log("Submitting registration with department:", formData.department);
+        console.log("Current formData:", formData);
 
-        // Validate that selected courses exist in availableCourses
-        const invalidCourses = formData.selected_courses.filter(
-            id => !availableCourses.some(c => c.id === id)
-        );
-
-        if (invalidCourses.length > 0) {
-            showStatus("error", `Invalid course IDs: ${invalidCourses.join(', ')}`);
-            return;
-        }
-
-        // Map to backend expectations
         const submissionData = {
             email: formData.email,
             password: formData.password,
@@ -181,12 +164,12 @@ const Tutee: React.FC = () => {
             id_number: formData.idNumber || "",
             program_level: formData.program_level,
             program_id: formData.program_id,
-            selectedCourses: formData.selected_courses,
+            selectedCourses: formData.selected_courses || [],
             term: formData.term,
             department: formData.department
         };
 
-        console.log('Submitting payload:', submissionData);
+        console.log("Submission payload being sent:", submissionData);
 
         setLoading(prev => ({ ...prev, submit: true }));
         showStatus("info", "Processing registration...");
@@ -335,7 +318,7 @@ const Tutee: React.FC = () => {
                                     disabled={loading.programs || loading.submit}
                                     className={loading.programs ? "loading" : ""}
                                 >
-                                    <option value="">Select Program Level</option>
+                                    <option value="">-- Select Program Level --</option>
                                     <option value="undergraduate">Undergraduate (Bachelor's Degree)</option>
                                     <option value="graduate">Graduate (Master's/Doctoral)</option>
                                 </select>
@@ -354,13 +337,18 @@ const Tutee: React.FC = () => {
                                         required
                                         disabled={loading.programs || !programs[formData.program_level].length || loading.submit}
                                     >
-                                        <option value="">Select Your Degree Program</option>
+                                        <option value="">-- Select Your Degree Program --</option>
                                         {programs[formData.program_level].map((program) => (
                                             <option key={program.id} value={program.id}>
                                                 {program.program_name}
                                             </option>
                                         ))}
                                     </select>
+                                    {programs[formData.program_level].length === 0 && (
+                                        <span className="field-error">
+                                            No programs available for this level
+                                        </span>
+                                    )}
                                 </div>
                             )}
                         </div>
@@ -373,6 +361,7 @@ const Tutee: React.FC = () => {
                                 <span className="section-number">03</span>
                                 <h3>Course Registration</h3>
                                 <div className="credit-badge">
+                                    <span className="credit-icon"></span>
                                     <span className="credit-text">{formData.selected_courses.length} / 2 Courses Selected</span>
                                 </div>
                             </div>
@@ -383,6 +372,13 @@ const Tutee: React.FC = () => {
                                     <span className="info-value">{getSelectedProgramName()}</span>
                                 </div>
                                 <div className="program-info-row">
+                                    <span className="info-label">Registration Term:</span>
+                                    <span className="info-value">
+                                        {formData.term === 'FS' ? 'Fall Semester' : 
+                                         formData.term === 'SS' ? 'Summer Semester' : 'Spring Semester'}
+                                    </span>
+                                </div>
+                                <div className="program-info-row">
                                     <span className="info-label">Department:</span>
                                     <span className="info-value">{formData.department || getSelectedProgramName()}</span>
                                 </div>
@@ -390,6 +386,7 @@ const Tutee: React.FC = () => {
                                     <span className="info-label">Course Load:</span>
                                     <span className="info-value">
                                         {formData.selected_courses.length} Course(s) Selected
+                                        {formData.selected_courses.length === 2 && ' (Maximum)'}
                                     </span>
                                 </div>
                             </div>
@@ -403,8 +400,10 @@ const Tutee: React.FC = () => {
                                 <>
                                     {availableCourses.length === 0 ? (
                                         <div className="empty-state">
+                                            <div className="empty-icon"></div>
                                             <h4>No Courses Available</h4>
-                                            <p>This program currently has no available courses.</p>
+                                            <p>This program currently has no available courses for registration.</p>
+                                            <small>Please contact the Academic Registry for assistance.</small>
                                         </div>
                                     ) : (
                                         <div className="courses-table-wrapper">
@@ -482,15 +481,27 @@ const Tutee: React.FC = () => {
                                     Processing Registration...
                                 </>
                             ) : (
-                                "Submit Registration"
+                                <>
+                                    Submit Registration
+                                </>
                             )}
                         </button>
+                        <p className="form-notice">
+                            By submitting this form, you confirm that the information provided is accurate
+                            and complete in accordance with university regulations.
+                        </p>
                     </div>
                 </form>
 
                 {/* STATUS NOTIFICATIONS */}
                 {status.message && (
                     <div className={`notification-panel ${status.type}`}>
+                        <div className="notification-icon">
+                            {status.type === 'success' && '✓'}
+                            {status.type === 'error' && '✗'}
+                            {status.type === 'warning' && '⚠'}
+                            {status.type === 'info' && 'ℹ'}
+                        </div>
                         <div className="notification-content">
                             <span className="notification-title">
                                 {status.type === 'success' && 'Success'}
