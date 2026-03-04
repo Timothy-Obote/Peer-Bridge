@@ -69,14 +69,20 @@ const Tutor: React.FC = () => {
             if (!response.ok) throw new Error("Failed to fetch courses");
             const data = await response.json();
             
+            // Log raw API response for debugging
+            console.log("Raw API response:", data);
+            
             // Transform API response to match Course type
+            // Backend returns { id, code, name }
+            // Frontend expects { id, unit_code, unit_name }
             const transformedCourses: Course[] = data.map((item: any) => ({
                 id: item.id,
-                unit_code: item.code,
-                unit_name: item.name,
-                credits: 3
+                unit_code: item.code,      // Map 'code' to 'unit_code'
+                unit_name: item.name,      // Map 'name' to 'unit_name'
+                credits: 3                  // Default credits
             }));
             
+            console.log("Transformed courses:", transformedCourses);
             setAvailableCourses(transformedCourses);
 
             // Update department field
@@ -232,7 +238,7 @@ const Tutor: React.FC = () => {
                 </div>
 
                 <form onSubmit={handleSubmit} className="tutor-form">
-                    {/* Personal Information Section */}
+                    {/* SECTION 1: PERSONAL INFORMATION */}
                     <div className="form-section">
                         <div className="section-title">
                             <span className="section-number">01</span>
@@ -311,11 +317,14 @@ const Tutor: React.FC = () => {
                         </div>
                     </div>
 
-                    {/* Academic Program Section */}
+                    {/* SECTION 2: ACADEMIC PROGRAM */}
                     <div className="form-section">
                         <div className="section-title">
                             <span className="section-number">02</span>
                             <h3>Academic Program</h3>
+                            <div className="credit-badge">
+                                <span className="credit-text">Tutor Application</span>
+                            </div>
                         </div>
 
                         <div className="form-grid">
@@ -360,7 +369,7 @@ const Tutor: React.FC = () => {
                         </div>
                     </div>
 
-                    {/* Course Selection Section */}
+                    {/* SECTION 3: COURSE SELECTION */}
                     {formData.program_id && (
                         <div className="form-section">
                             <div className="section-title">
@@ -457,7 +466,7 @@ const Tutor: React.FC = () => {
                         </div>
                     )}
 
-                    {/* Submit Section */}
+                    {/* SUBMIT SECTION */}
                     <div className="form-footer">
                         <button
                             type="submit"
@@ -482,7 +491,7 @@ const Tutor: React.FC = () => {
                     </div>
                 </form>
 
-                {/* Status Notifications */}
+                {/* STATUS NOTIFICATIONS */}
                 {status.message && (
                     <div className={`notification-panel ${status.type}`}>
                         <div className="notification-content">

@@ -69,14 +69,20 @@ const Tutee: React.FC = () => {
             if (!response.ok) throw new Error("Failed to fetch courses");
             const data = await response.json();
             
+            // Log raw API response for debugging
+            console.log("Raw API response:", data);
+            
             // Transform API response to match Course type
+            // Backend returns { id, code, name }
+            // Frontend expects { id, unit_code, unit_name }
             const transformedCourses: Course[] = data.map((item: any) => ({
                 id: item.id,
-                unit_code: item.code,
-                unit_name: item.name,
-                credits: 3
+                unit_code: item.code,      // Map 'code' to 'unit_code'
+                unit_name: item.name,      // Map 'name' to 'unit_name'
+                credits: 3                  // Default credits
             }));
             
+            console.log("Transformed courses:", transformedCourses);
             setAvailableCourses(transformedCourses);
 
             // Update department field
@@ -232,7 +238,7 @@ const Tutee: React.FC = () => {
                 </div>
 
                 <form onSubmit={handleSubmit} className="tutee-form">
-                    {/* Personal Information Section */}
+                    {/* SECTION 1: PERSONAL INFORMATION */}
                     <div className="form-section">
                         <div className="section-title">
                             <span className="section-number">01</span>
@@ -311,7 +317,7 @@ const Tutee: React.FC = () => {
                         </div>
                     </div>
 
-                    {/* Academic Program Section */}
+                    {/* SECTION 2: ACADEMIC PROGRAM */}
                     <div className="form-section">
                         <div className="section-title">
                             <span className="section-number">02</span>
@@ -360,7 +366,7 @@ const Tutee: React.FC = () => {
                         </div>
                     </div>
 
-                    {/* Course Registration Section */}
+                    {/* SECTION 3: COURSE REGISTRATION */}
                     {formData.program_id && (
                         <div className="form-section">
                             <div className="section-title">
@@ -457,7 +463,7 @@ const Tutee: React.FC = () => {
                         </div>
                     )}
 
-                    {/* Submit Section */}
+                    {/* SUBMIT SECTION */}
                     <div className="form-footer">
                         <button
                             type="submit"
@@ -482,7 +488,7 @@ const Tutee: React.FC = () => {
                     </div>
                 </form>
 
-                {/* Status Notifications */}
+                {/* STATUS NOTIFICATIONS */}
                 {status.message && (
                     <div className={`notification-panel ${status.type}`}>
                         <div className="notification-content">
