@@ -43,6 +43,7 @@ const Tutee: React.FC = () => {
     useEffect(() => {
         if (formData.program_id) {
             fetchProgramCourses(Number(formData.program_id));
+            // Clear previously selected courses when program changes
             setFormData(prev => ({ ...prev, selected_courses: [] }));
         } else {
             setAvailableCourses([]);
@@ -70,6 +71,7 @@ const Tutee: React.FC = () => {
             const data = await response.json();
 
             // Transform API response to match Course interface
+            // Backend returns { id, code, name } but frontend expects { id, unit_code, unit_name }
             const transformedCourses: Course[] = data.map((item: any) => ({
                 id: item.id,
                 unit_code: item.code || item.unit_code || "",
@@ -79,6 +81,7 @@ const Tutee: React.FC = () => {
 
             setAvailableCourses(transformedCourses);
 
+            // Update department field with selected program's name
             const allPrograms = [...programs.undergraduate, ...programs.graduate];
             const selectedProgram = allPrograms.find(p => p.id === programId);
             if (selectedProgram) {
@@ -157,6 +160,7 @@ const Tutee: React.FC = () => {
         console.log("Submitting registration with department:", formData.department);
         console.log("Current formData:", formData);
 
+        // Map the form data to match backend expectations
         const submissionData = {
             email: formData.email,
             password: formData.password,
@@ -178,6 +182,7 @@ const Tutee: React.FC = () => {
             await tuteeService.registerTutee(submissionData as any);
             showStatus("success", "Registration successful! Redirecting...");
 
+            // Reset form
             setFormData({
                 email: "",
                 password: "",
