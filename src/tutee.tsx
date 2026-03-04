@@ -7,7 +7,7 @@ import "./tutee.css";
 const Tutee: React.FC = () => {
     const navigate = useNavigate();
 
-    // Form state (camelCase for internal consistency)
+    // Form state
     const [formData, setFormData] = useState<TuteeRegistrationData>({
         email: "",
         password: "",
@@ -39,11 +39,10 @@ const Tutee: React.FC = () => {
         fetchPrograms();
     }, []);
 
-    // Fetch courses when program is selected, and reset selected courses
+    // Fetch courses when program is selected
     useEffect(() => {
         if (formData.program_id) {
             fetchProgramCourses(Number(formData.program_id));
-            // Clear previously selected courses when program changes
             setFormData(prev => ({ ...prev, selected_courses: [] }));
         } else {
             setAvailableCourses([]);
@@ -64,28 +63,35 @@ const Tutee: React.FC = () => {
     };
 
     const fetchProgramCourses = async (programId: number) => {
-    setLoading(prev => ({ ...prev, courses: true }));
-    try {
-        const response = await fetch(`${import.meta.env.VITE_API_URL}/api/programs/${programId}/courses`);
-        if (!response.ok) throw new Error("Failed to fetch courses");
-        const data = await response.json();
+        setLoading(prev => ({ ...prev, courses: true }));
+        try {
+            const response = await fetch(`${import.meta.env.VITE_API_URL}/api/programs/${programId}/courses`);
+            if (!response.ok) throw new Error("Failed to fetch courses");
+            const data = await response.json();
+            
+            // Transform API response to match Course type
+            const transformedCourses: Course[] = data.map((item: any) => ({
+                id: item.id,
+                unit_code: item.code,
+                unit_name: item.name,
+                credits: 3
+            }));
+            
+            setAvailableCourses(transformedCourses);
 
-        // The API already returns { id, unit_code, unit_name }
-        setAvailableCourses(data);
-
-        // Update department field with selected program's name
-        const allPrograms = [...programs.undergraduate, ...programs.graduate];
-        const selectedProgram = allPrograms.find(p => p.id === programId);
-        if (selectedProgram) {
-            setFormData(prev => ({ ...prev, department: selectedProgram.program_name }));
+            // Update department field
+            const allPrograms = [...programs.undergraduate, ...programs.graduate];
+            const selectedProgram = allPrograms.find(p => p.id === programId);
+            if (selectedProgram) {
+                setFormData(prev => ({ ...prev, department: selectedProgram.program_name }));
+            }
+        } catch (error) {
+            console.error("Error fetching courses:", error);
+            showStatus("error", "Could not load courses for this program.");
+        } finally {
+            setLoading(prev => ({ ...prev, courses: false }));
         }
-    } catch (error) {
-        console.error("Error fetching courses:", error);
-        showStatus("error", "Could not load courses for this program.");
-    } finally {
-        setLoading(prev => ({ ...prev, courses: false }));
-    }
-};
+    };
 
     const handleInputChange = (
         e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>
@@ -132,70 +138,78 @@ const Tutee: React.FC = () => {
     };
 
     const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
+        e.preventDefault();
 
-    if (!formData.program_level) {
-        showStatus("error", "Please select a program level");
-        return;
-    }
+        if (!formData.program_level) {
+            showStatus("error", "Please select a program level");
+            return;
+        }
 
-    if (!formData.program_id) {
-        showStatus("error", "Please select a program");
-        return;
-    }
+        if (!formData.program_id) {
+            showStatus("error", "Please select a program");
+            return;
+        }
 
-    if (formData.selected_courses.length === 0) {
-        showStatus("error", "Please select at least one course");
-        return;
-    }
+        if (formData.selected_courses.length === 0) {
+            showStatus("error", "Please select at least one course");
+            return;
+        }
 
-    console.log("Submitting registration with department:", formData.department);
-    console.log("Current formData:", formData); // see what's in the state
+        console.log("Submitting registration:", formData);
 
-    // Map the form data to match backend expectations
-    const submissionData = {
-        email: formData.email,
-        password: formData.password,
-        name: formData.name,
-        id_number: formData.idNumber || "",           // fallback to empty string
-        program_level: formData.program_level,
-        program_id: formData.program_id,
-        selectedCourses: formData.selected_courses || [], // fallback to empty array
-        term: formData.term,
-        department: formData.department
+        // Validate that selected courses exist in availableCourses
+        const invalidCourses = formData.selected_courses.filter(
+            id => !availableCourses.some(c => c.id === id)
+        );
+
+        if (invalidCourses.length > 0) {
+            showStatus("error", `Invalid course IDs: ${invalidCourses.join(', ')}`);
+            return;
+        }
+
+        // Map to backend expectations
+        const submissionData = {
+            email: formData.email,
+            password: formData.password,
+            name: formData.name,
+            id_number: formData.idNumber || "",
+            program_level: formData.program_level,
+            program_id: formData.program_id,
+            selectedCourses: formData.selected_courses,
+            term: formData.term,
+            department: formData.department
+        };
+
+        console.log('Submitting payload:', submissionData);
+
+        setLoading(prev => ({ ...prev, submit: true }));
+        showStatus("info", "Processing registration...");
+
+        try {
+            await tuteeService.registerTutee(submissionData as any);
+            showStatus("success", "Registration successful! Redirecting...");
+
+            setFormData({
+                email: "",
+                password: "",
+                name: "",
+                idNumber: "",
+                program_level: "",
+                program_id: "",
+                selected_courses: [],
+                term: "FS",
+                department: ""
+            });
+            setAvailableCourses([]);
+
+            setTimeout(() => navigate("/tutee-dashboard"), 2000);
+        } catch (error: any) {
+            showStatus("error", error.message || "Registration failed");
+            console.error("Registration error:", error);
+        } finally {
+            setLoading(prev => ({ ...prev, submit: false }));
+        }
     };
-
-    console.log("Submission payload being sent:", submissionData); //  verify payload
-
-    setLoading(prev => ({ ...prev, submit: true }));
-    showStatus("info", "Processing registration...");
-
-    try {
-        await tuteeService.registerTutee(submissionData as any);
-        showStatus("success", "Registration successful! Redirecting...");
-
-        // Reset form
-        setFormData({
-            email: "",
-            password: "",
-            name: "",
-            idNumber: "",
-            program_level: "",
-            program_id: "",
-            selected_courses: [],
-            term: "FS",
-            department: ""
-        });
-        setAvailableCourses([]);
-
-        setTimeout(() => navigate("/tutee-dashboard"), 2000);
-    } catch (error: any) {
-        showStatus("error", error.message || "Registration failed");
-        console.error("Registration error:", error);
-    } finally {
-        setLoading(prev => ({ ...prev, submit: false }));
-    }
-};
 
     const showStatus = (type: string, message: string) => {
         setStatus({ type, message });
@@ -218,7 +232,7 @@ const Tutee: React.FC = () => {
                 </div>
 
                 <form onSubmit={handleSubmit} className="tutee-form">
-                    {/* SECTION 1: PERSONAL INFORMATION */}
+                    {/* Personal Information Section */}
                     <div className="form-section">
                         <div className="section-title">
                             <span className="section-number">01</span>
@@ -297,7 +311,7 @@ const Tutee: React.FC = () => {
                         </div>
                     </div>
 
-                    {/* SECTION 2: ACADEMIC PROGRAM */}
+                    {/* Academic Program Section */}
                     <div className="form-section">
                         <div className="section-title">
                             <span className="section-number">02</span>
@@ -315,7 +329,7 @@ const Tutee: React.FC = () => {
                                     disabled={loading.programs || loading.submit}
                                     className={loading.programs ? "loading" : ""}
                                 >
-                                    <option value="">-- Select Program Level --</option>
+                                    <option value="">Select Program Level</option>
                                     <option value="undergraduate">Undergraduate (Bachelor's Degree)</option>
                                     <option value="graduate">Graduate (Master's/Doctoral)</option>
                                 </select>
@@ -334,31 +348,25 @@ const Tutee: React.FC = () => {
                                         required
                                         disabled={loading.programs || !programs[formData.program_level].length || loading.submit}
                                     >
-                                        <option value="">-- Select Your Degree Program --</option>
+                                        <option value="">Select Your Degree Program</option>
                                         {programs[formData.program_level].map((program) => (
                                             <option key={program.id} value={program.id}>
                                                 {program.program_name}
                                             </option>
                                         ))}
                                     </select>
-                                    {programs[formData.program_level].length === 0 && (
-                                        <span className="field-error">
-                                            No programs available for this level
-                                        </span>
-                                    )}
                                 </div>
                             )}
                         </div>
                     </div>
 
-                    {/* SECTION 3: COURSE REGISTRATION */}
+                    {/* Course Registration Section */}
                     {formData.program_id && (
                         <div className="form-section">
                             <div className="section-title">
                                 <span className="section-number">03</span>
                                 <h3>Course Registration</h3>
                                 <div className="credit-badge">
-                                    <span className="credit-icon"></span>
                                     <span className="credit-text">{formData.selected_courses.length} / 2 Courses Selected</span>
                                 </div>
                             </div>
@@ -369,13 +377,6 @@ const Tutee: React.FC = () => {
                                     <span className="info-value">{getSelectedProgramName()}</span>
                                 </div>
                                 <div className="program-info-row">
-                                    <span className="info-label">Registration Term:</span>
-                                    <span className="info-value">
-                                        {formData.term === 'FS' ? 'Fall Semester' : 
-                                         formData.term === 'SS' ? 'Summer Semester' : 'Spring Semester'}
-                                    </span>
-                                </div>
-                                <div className="program-info-row">
                                     <span className="info-label">Department:</span>
                                     <span className="info-value">{formData.department || getSelectedProgramName()}</span>
                                 </div>
@@ -383,7 +384,6 @@ const Tutee: React.FC = () => {
                                     <span className="info-label">Course Load:</span>
                                     <span className="info-value">
                                         {formData.selected_courses.length} Course(s) Selected
-                                        {formData.selected_courses.length === 2 && ' (Maximum)'}
                                     </span>
                                 </div>
                             </div>
@@ -397,10 +397,8 @@ const Tutee: React.FC = () => {
                                 <>
                                     {availableCourses.length === 0 ? (
                                         <div className="empty-state">
-                                            <div className="empty-icon"></div>
                                             <h4>No Courses Available</h4>
-                                            <p>This program currently has no available courses for registration.</p>
-                                            <small>Please contact the Academic Registry for assistance.</small>
+                                            <p>This program currently has no available courses.</p>
                                         </div>
                                     ) : (
                                         <div className="courses-table-wrapper">
@@ -459,7 +457,7 @@ const Tutee: React.FC = () => {
                         </div>
                     )}
 
-                    {/* SUBMIT SECTION */}
+                    {/* Submit Section */}
                     <div className="form-footer">
                         <button
                             type="submit"
@@ -478,27 +476,15 @@ const Tutee: React.FC = () => {
                                     Processing Registration...
                                 </>
                             ) : (
-                                <>
-                                    Submit Registration
-                                </>
+                                "Submit Registration"
                             )}
                         </button>
-                        <p className="form-notice">
-                            By submitting this form, you confirm that the information provided is accurate
-                            and complete in accordance with university regulations.
-                        </p>
                     </div>
                 </form>
 
-                {/* STATUS NOTIFICATIONS */}
+                {/* Status Notifications */}
                 {status.message && (
                     <div className={`notification-panel ${status.type}`}>
-                        <div className="notification-icon">
-                            {status.type === 'success'}
-                            {status.type === 'error'}
-                            {status.type === 'warning'}
-                            {status.type === 'info'}
-                        </div>
                         <div className="notification-content">
                             <span className="notification-title">
                                 {status.type === 'success' && 'Success'}

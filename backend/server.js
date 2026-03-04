@@ -285,10 +285,15 @@ app.post("/signup", async (req, res) => {
     }
 });
 
-// ============ TUTEE REGISTRATION (NO VALIDATION) ============
+// ============ TUTEE REGISTRATION (with logging) ============
 app.post('/api/tutees', async (req, res) => {
   const { email, password, name, id_number, program_level, program_id, selectedCourses, term, department } = req.body;
   
+  console.log(' TUTEE REGISTRATION ATTEMPT');
+  console.log('Email:', email);
+  console.log('Program ID:', program_id);
+  console.log('Selected Courses:', selectedCourses);
+
   if (!email || !password) {
     return res.status(400).json({ success: false, message: 'Email and password required' });
   }
@@ -322,29 +327,27 @@ app.post('/api/tutees', async (req, res) => {
     );
     const userId = userRes.rows[0].id;
 
-    // Insert selected courses (NO VALIDATION)
-if (selectedCourses && Array.isArray(selectedCourses) && selectedCourses.length > 0) {
-  console.log('Attempting to insert courses:', selectedCourses); // ADD THIS
-  for (const courseId of selectedCourses) {
-    console.log(`Checking course ID ${courseId} exists...`); // ADD THIS
-    await client.query(
-      'INSERT INTO tutee_courses (tutee_id, course_id) VALUES ($1, $2) ON CONFLICT DO NOTHING',
-      [userId, courseId]
-    );
-  }
-}
-
-    // Insert selected courses (NO VALIDATION)
+    // Insert selected courses
     if (selectedCourses && Array.isArray(selectedCourses) && selectedCourses.length > 0) {
+      console.log('Attempting to insert courses:', selectedCourses);
+      
       for (const courseId of selectedCourses) {
-        await client.query(
-          'INSERT INTO tutee_courses (tutee_id, course_id) VALUES ($1, $2) ON CONFLICT DO NOTHING',
-          [userId, courseId]
-        );
+        console.log(`Processing course ID: ${courseId}`);
+        try {
+          await client.query(
+            'INSERT INTO tutee_courses (tutee_id, course_id) VALUES ($1, $2) ON CONFLICT DO NOTHING',
+            [userId, courseId]
+          );
+          console.log(`Successfully inserted course ID: ${courseId}`);
+        } catch (courseErr) {
+          console.error(` Failed to insert course ID ${courseId}:`, courseErr);
+          throw courseErr;
+        }
       }
     }
 
     await client.query('COMMIT');
+    console.log(' Registration successful for user ID:', userId);
 
     const token = jwt.sign(
       { id: userId, email, role: 'tutee' },
@@ -360,20 +363,34 @@ if (selectedCourses && Array.isArray(selectedCourses) && selectedCourses.length 
     });
   } catch (err) {
     await client.query('ROLLBACK');
-    console.error('Tutee registration error:', err);
+    console.error(' Tutee registration error:', err);
+    
     if (err.code === '23505') {
       return res.status(400).json({ success: false, message: 'Email already exists' });
     }
+    if (err.code === '23503') {
+      return res.status(400).json({ 
+        success: false, 
+        message: 'One or more selected courses do not exist in the database',
+        invalidCourseIds: selectedCourses
+      });
+    }
+    
     res.status(500).json({ success: false, message: 'Server error', error: err.message });
   } finally {
     client.release();
   }
 });
 
-// ============ TUTOR REGISTRATION (NO VALIDATION) ============
+// ============ TUTOR REGISTRATION (with logging) ============
 app.post('/api/tutors', async (req, res) => {
   const { email, password, name, id_number, program_level, program_id, selectedCourses, term, department } = req.body;
   
+  console.log(' TUTOR REGISTRATION ATTEMPT');
+  console.log('Email:', email);
+  console.log('Program ID:', program_id);
+  console.log('Selected Courses:', selectedCourses);
+
   if (!email || !password) {
     return res.status(400).json({ success: false, message: 'Email and password required' });
   }
@@ -407,17 +424,27 @@ app.post('/api/tutors', async (req, res) => {
     );
     const userId = userRes.rows[0].id;
 
-    // Insert selected courses (NO VALIDATION)
+    // Insert selected courses
     if (selectedCourses && Array.isArray(selectedCourses) && selectedCourses.length > 0) {
+      console.log('Attempting to insert courses:', selectedCourses);
+      
       for (const courseId of selectedCourses) {
-        await client.query(
-          'INSERT INTO tutor_courses (tutor_id, course_id) VALUES ($1, $2) ON CONFLICT DO NOTHING',
-          [userId, courseId]
-        );
+        console.log(`Processing course ID: ${courseId}`);
+        try {
+          await client.query(
+            'INSERT INTO tutor_courses (tutor_id, course_id) VALUES ($1, $2) ON CONFLICT DO NOTHING',
+            [userId, courseId]
+          );
+          console.log(`Successfully inserted course ID: ${courseId}`);
+        } catch (courseErr) {
+          console.error(` Failed to insert course ID ${courseId}:`, courseErr);
+          throw courseErr;
+        }
       }
     }
 
     await client.query('COMMIT');
+    console.log('Registration successful for user ID:', userId);
 
     const token = jwt.sign(
       { id: userId, email, role: 'tutor' },
@@ -433,10 +460,19 @@ app.post('/api/tutors', async (req, res) => {
     });
   } catch (err) {
     await client.query('ROLLBACK');
-    console.error('Tutor registration error:', err);
+    console.error(' Tutor registration error:', err);
+    
     if (err.code === '23505') {
       return res.status(400).json({ success: false, message: 'Email already exists' });
     }
+    if (err.code === '23503') {
+      return res.status(400).json({ 
+        success: false, 
+        message: 'One or more selected courses do not exist in the database',
+        invalidCourseIds: selectedCourses
+      });
+    }
+    
     res.status(500).json({ success: false, message: 'Server error', error: err.message });
   } finally {
     client.release();
