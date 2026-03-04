@@ -422,20 +422,13 @@ app.post('/api/tutors', async (req, res) => {
     );
     const userId = userRes.rows[0].id;
 
-    // Validate that all selected courses belong to the chosen program
+    
     if (selectedCourses && Array.isArray(selectedCourses) && selectedCourses.length > 0) {
       const { rows: validCourses } = await client.query(
         `SELECT id FROM courses WHERE program_id = $1 AND id = ANY($2::int[])`,
         [program_id, selectedCourses]
       );
-      if (validCourses.length !== selectedCourses.length) {
-        await client.query('ROLLBACK');
-        return res.status(400).json({
-          success: false,
-          message: 'One or more selected courses do not belong to the chosen program'
-        });
-      }
-
+      
       // Insert selected courses (tutor's offerings)
       for (const courseId of selectedCourses) {
         await client.query(
