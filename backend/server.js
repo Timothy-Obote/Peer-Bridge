@@ -103,12 +103,12 @@ io.on("connection", (socket) => {
   });
 });
 
-// ============ ROUTES (old, may still work) ============
+// ============ ROUTES ============
 app.use('/api', programRoutes);
 app.use('/', tuteeRoutes);
 app.use('/', tutorRoutes);
 
-// ============ NEW ENDPOINT: Get courses by program ID (using new schema) ============
+// ============ GET COURSES BY PROGRAM ID ============
 app.get('/api/programs/:programId/courses', async (req, res) => {
     try {
         const { programId } = req.params;
@@ -125,7 +125,7 @@ app.get('/api/programs/:programId/courses', async (req, res) => {
     }
 });
 
-// ============ OLD ENDPOINTS (keep for now) ============
+// ============ DEBUG ENDPOINTS ============
 app.get('/debug/programs', async (req, res) => {
     try {
         const { rows } = await pool.query('SELECT * FROM programs LIMIT 10');
@@ -133,20 +133,6 @@ app.get('/debug/programs', async (req, res) => {
     } catch (error) {
         console.error('Debug programs error:', error);
         res.status(500).json({ success: false, error: error.message });
-    }
-});
-
-app.get('/debug/courses-schema', async (req, res) => {
-    try {
-        const result = await pool.query(`
-            SELECT column_name, data_type 
-            FROM information_schema.columns 
-            WHERE table_name = 'courses_1'
-            ORDER BY ordinal_position;
-        `);
-        res.json({ table: 'courses_1', columns: result.rows });
-    } catch (err) {
-        res.status(500).json({ error: err.message });
     }
 });
 
@@ -166,7 +152,7 @@ app.get('/test-db', async (req, res) => {
     }
 });
 
-// ============ UPDATED ADMIN OVERVIEW (using new schema) ============
+// ============ ADMIN OVERVIEW ============
 app.get("/admin/overview", async (req, res) => {
     try {
         const users = await pool.query(`
@@ -218,7 +204,7 @@ app.get("/admin/overview", async (req, res) => {
     }
 });
 
-// ============ UPDATED SIGNIN (using users table) ============
+// ============ SIGNIN ============
 app.post("/signin", async (req, res) => {
     const { email, password } = req.body;
     if (!email || !password) {
@@ -277,7 +263,7 @@ app.post("/signin", async (req, res) => {
     }
 });
 
-// ============ SIGNUP (basic, creates a user with role 'pending') ============
+// ============ SIGNUP ============
 app.post("/signup", async (req, res) => {
     const { email, password } = req.body;
     if (!email || !password) {
@@ -299,7 +285,7 @@ app.post("/signup", async (req, res) => {
     }
 });
 
-// ============ TUTEE REGISTRATION (with validation) ============
+// ============ TUTEE REGISTRATION (NO VALIDATION) ============
 app.post('/api/tutees', async (req, res) => {
   const { email, password, name, id_number, program_level, program_id, selectedCourses, term, department } = req.body;
   
@@ -336,21 +322,8 @@ app.post('/api/tutees', async (req, res) => {
     );
     const userId = userRes.rows[0].id;
 
-    // Validate that all selected courses belong to the chosen program
+    // Insert selected courses (NO VALIDATION)
     if (selectedCourses && Array.isArray(selectedCourses) && selectedCourses.length > 0) {
-      const { rows: validCourses } = await client.query(
-        `SELECT id FROM courses WHERE program_id = $1 AND id = ANY($2::int[])`,
-        [program_id, selectedCourses]
-      );
-      if (validCourses.length !== selectedCourses.length) {
-        await client.query('ROLLBACK');
-        return res.status(400).json({
-          success: false,
-          message: 'One or more selected courses do not belong to the chosen program'
-        });
-      }
-
-      // Insert selected courses
       for (const courseId of selectedCourses) {
         await client.query(
           'INSERT INTO tutee_courses (tutee_id, course_id) VALUES ($1, $2) ON CONFLICT DO NOTHING',
@@ -385,7 +358,7 @@ app.post('/api/tutees', async (req, res) => {
   }
 });
 
-// ============ TUTOR REGISTRATION (with validation) ============
+// ============ TUTOR REGISTRATION (NO VALIDATION) ============
 app.post('/api/tutors', async (req, res) => {
   const { email, password, name, id_number, program_level, program_id, selectedCourses, term, department } = req.body;
   
@@ -422,14 +395,8 @@ app.post('/api/tutors', async (req, res) => {
     );
     const userId = userRes.rows[0].id;
 
-    
+    // Insert selected courses (NO VALIDATION)
     if (selectedCourses && Array.isArray(selectedCourses) && selectedCourses.length > 0) {
-      const { rows: validCourses } = await client.query(
-        `SELECT id FROM courses WHERE program_id = $1 AND id = ANY($2::int[])`,
-        [program_id, selectedCourses]
-      );
-      
-      // Insert selected courses (tutor's offerings)
       for (const courseId of selectedCourses) {
         await client.query(
           'INSERT INTO tutor_courses (tutor_id, course_id) VALUES ($1, $2) ON CONFLICT DO NOTHING',
@@ -464,12 +431,10 @@ app.post('/api/tutors', async (req, res) => {
   }
 });
 
-// ============ MATCHING LOGIC FUNCTIONS ============
+// ============ MATCHING LOGIC ============
 const matching = require('./matching');
 
-// ============ NEW MATCHING ENDPOINTS ============
-
-// Trigger matching manually (admin only – you should add auth middleware)
+// Trigger matching manually
 app.post('/api/matching/run', async (req, res) => {
     try {
         await matching.autoMatch();
@@ -520,7 +485,7 @@ app.post('/api/suggestions/:id/reject', async (req, res) => {
     }
 });
 
-// Get all matches for a user (tutor or tutee)
+// Get all matches for a user
 app.get('/api/matches/:userId', async (req, res) => {
     const { userId } = req.params;
     try {
@@ -539,7 +504,7 @@ app.get('/api/matches/:userId', async (req, res) => {
     }
 });
 
-// Optional: scheduled matching (runs every hour)
+// Scheduled matching
 cron.schedule('0 * * * *', async () => {
     console.log('Running scheduled matching...');
     try {
@@ -551,8 +516,6 @@ cron.schedule('0 * * * *', async () => {
 });
 
 // ============ TUTEE SPECIFIC ENDPOINTS ============
-
-// Get matches for a specific tutee (by tutee_id)
 app.get('/api/matches/tutee/:tuteeId', authenticateToken, async (req, res) => {
   const { tuteeId } = req.params;
   try {
@@ -571,7 +534,6 @@ app.get('/api/matches/tutee/:tuteeId', authenticateToken, async (req, res) => {
   }
 });
 
-// Get pending suggestions for a tutee
 app.get('/api/suggestions/tutee/:tuteeId', authenticateToken, async (req, res) => {
   const { tuteeId } = req.params;
   try {
@@ -588,7 +550,6 @@ app.get('/api/suggestions/tutee/:tuteeId', authenticateToken, async (req, res) =
   }
 });
 
-// Get courses needed by a tutee
 app.get('/api/tutee/:id/courses', authenticateToken, async (req, res) => {
   const { id } = req.params;
   try {
@@ -604,7 +565,6 @@ app.get('/api/tutee/:id/courses', authenticateToken, async (req, res) => {
   }
 });
 
-// Update (replace) courses needed by a tutee
 app.put('/api/tutee/:id/courses', authenticateToken, async (req, res) => {
   const { id } = req.params;
   const { courseIds } = req.body;
@@ -629,8 +589,6 @@ app.put('/api/tutee/:id/courses', authenticateToken, async (req, res) => {
 });
 
 // ============ PROFILE & COURSES ENDPOINTS ============
-
-// Get user by ID
 app.get('/api/users/:id', authenticateToken, async (req, res) => {
   if (req.user.id !== parseInt(req.params.id) && req.user.role !== 'admin') {
     return res.status(403).json({ error: 'Forbidden' });
@@ -653,7 +611,6 @@ app.get('/api/users/:id', authenticateToken, async (req, res) => {
   }
 });
 
-// Update user profile (allows updating name, id_number, department_id, term)
 app.put('/api/users/:id', authenticateToken, async (req, res) => {
   if (req.user.id !== parseInt(req.params.id) && req.user.role !== 'admin') {
     return res.status(403).json({ error: 'Forbidden' });
@@ -671,7 +628,6 @@ app.put('/api/users/:id', authenticateToken, async (req, res) => {
   }
 });
 
-// Get all departments
 app.get('/api/departments', async (req, res) => {
   try {
     const { rows } = await pool.query('SELECT id, name FROM departments ORDER BY name');
@@ -681,7 +637,6 @@ app.get('/api/departments', async (req, res) => {
   }
 });
 
-// Get all courses
 app.get('/api/courses', async (req, res) => {
   try {
     const { rows } = await pool.query('SELECT id, code, name FROM courses ORDER BY code');
@@ -691,7 +646,6 @@ app.get('/api/courses', async (req, res) => {
   }
 });
 
-// Get courses offered by a specific tutor (protected)
 app.get('/api/tutor/:id/courses', authenticateToken, async (req, res) => {
   if (req.user.id !== parseInt(req.params.id) && req.user.role !== 'admin') {
     return res.status(403).json({ error: 'Forbidden' });
@@ -711,7 +665,6 @@ app.get('/api/tutor/:id/courses', authenticateToken, async (req, res) => {
   }
 });
 
-// Update (replace) courses offered by a tutor
 app.put('/api/tutor/:id/courses', authenticateToken, async (req, res) => {
   if (req.user.id !== parseInt(req.params.id) && req.user.role !== 'admin') {
     return res.status(403).json({ error: 'Forbidden' });
