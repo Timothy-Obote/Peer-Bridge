@@ -533,18 +533,26 @@ app.post('/api/suggestions/:id/reject', async (req, res) => {
     }
 });
 
-// Get all matches for a user
+// Get all matches for a user (UPDATED to include names)
 app.get('/api/matches/:userId', async (req, res) => {
     const { userId } = req.params;
     try {
         const matches = await pool.query(`
-            SELECT m.id, m.tutor_id, m.tutee_id, m.created_at,
-                   json_agg(json_build_object('code', c.code, 'name', c.name)) as courses
+            SELECT 
+                m.id, 
+                m.tutor_id, 
+                m.tutee_id, 
+                m.created_at,
+                tutor.name as tutor_name,
+                tutee.name as tutee_name,
+                json_agg(json_build_object('code', c.code, 'name', c.name)) as courses
             FROM matches m
+            JOIN users tutor ON m.tutor_id = tutor.id
+            JOIN users tutee ON m.tutee_id = tutee.id
             JOIN match_courses mc ON m.id = mc.match_id
             JOIN courses c ON mc.course_id = c.id
             WHERE m.tutor_id = $1 OR m.tutee_id = $1
-            GROUP BY m.id
+            GROUP BY m.id, tutor.name, tutee.name
         `, [userId]);
         res.json(matches.rows);
     } catch (err) {
@@ -562,6 +570,7 @@ cron.schedule('0 * * * *', async () => {
         console.error('Scheduled matching error:', err);
     }
 });
+
 
 // ============ TUTEE SPECIFIC ENDPOINTS ============
 app.get('/api/matches/tutee/:tuteeId', authenticateToken, async (req, res) => {
