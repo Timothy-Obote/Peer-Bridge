@@ -6,6 +6,7 @@ import "./tutor.css";
 
 const Tutor: React.FC = () => {
     const navigate = useNavigate();
+    const currentYear = new Date().getFullYear();
 
     // Form state (camelCase for internal consistency)
     const [formData, setFormData] = useState<TutorRegistrationData>({
@@ -13,7 +14,10 @@ const Tutor: React.FC = () => {
         password: "",
         name: "",
         idNumber: "",
+        gender: "",
+        year_of_study: "",
         term: "FS",
+        term_year: currentYear.toString(),
         program_level: "",
         program_id: "",
         selected_courses: [],
@@ -33,6 +37,16 @@ const Tutor: React.FC = () => {
         submit: false
     });
     const [status, setStatus] = useState({ type: "", message: "" });
+
+    // Generate year options (current year and next 5 years)
+    const yearOptions = () => {
+        const years = [];
+        for (let i = 0; i < 5; i++) {
+            const year = currentYear + i;
+            years.push(year.toString());
+        }
+        return years;
+    };
 
     // Fetch programs on mount
     useEffect(() => {
@@ -166,10 +180,13 @@ const Tutor: React.FC = () => {
             password: formData.password,
             name: formData.name,
             id_number: formData.idNumber || "",
+            gender: formData.gender,
+            year_of_study: formData.year_of_study,
             program_level: formData.program_level,
             program_id: formData.program_id,
             selectedCourses: formData.selected_courses || [],
             term: formData.term,
+            term_year: formData.term_year,
             department: formData.department
         };
 
@@ -196,10 +213,13 @@ const Tutor: React.FC = () => {
                 password: "",
                 name: "",
                 idNumber: "",
+                gender: "",
+                year_of_study: "",
                 program_level: "",
                 program_id: "",
                 selected_courses: [],
                 term: "FS",
+                term_year: currentYear.toString(),
                 department: ""
             });
             setAvailableCourses([]);
@@ -223,6 +243,15 @@ const Tutor: React.FC = () => {
         const allPrograms = [...programs.undergraduate, ...programs.graduate];
         const program = allPrograms.find(p => p.id === formData.program_id);
         return program?.program_name || "";
+    };
+
+    const getTermDisplay = () => {
+        const termMap = {
+            'FS': 'Fall Semester',
+            'SS': 'Summer Semester',
+            'US': 'Spring Semester'
+        };
+        return `${termMap[formData.term as keyof typeof termMap]} ${formData.term_year}`;
     };
 
     return (
@@ -297,18 +326,69 @@ const Tutor: React.FC = () => {
                             </div>
 
                             <div className="form-group">
-                                <label>Academic Semester <span className="required">*</span></label>
+                                <label>Gender <span className="required">*</span></label>
                                 <select
-                                    name="term"
-                                    value={formData.term}
+                                    name="gender"
+                                    value={formData.gender}
                                     onChange={handleInputChange}
                                     required
                                     disabled={loading.submit}
                                 >
-                                    <option value="FS">Fall Semester (FS)</option>
-                                    <option value="SS">Summer Semester (SS)</option>
-                                    <option value="US">Spring Semester (US)</option>
+                                    <option value="">-- Select Gender --</option>
+                                    <option value="male">Male</option>
+                                    <option value="female">Female</option>
+                                    <option value="prefer_not_to_say">Prefer not to say</option>
                                 </select>
+                            </div>
+
+                            <div className="form-group">
+                                <label>Year of Study <span className="required">*</span></label>
+                                <select
+                                    name="year_of_study"
+                                    value={formData.year_of_study}
+                                    onChange={handleInputChange}
+                                    required
+                                    disabled={loading.submit}
+                                >
+                                    <option value="">-- Select Year --</option>
+                                    <option value="1">Year 1 - Freshman</option>
+                                    <option value="2">Year 2 - Sophomore</option>
+                                    <option value="3">Year 3 - Junior</option>
+                                    <option value="4">Year 4 - Senior</option>
+                                    <option value="5">Year 5+</option>
+                                </select>
+                            </div>
+
+                            <div className="form-group">
+                                <label>Academic Semester <span className="required">*</span></label>
+                                <div style={{ display: 'flex', gap: '10px' }}>
+                                    <select
+                                        name="term"
+                                        value={formData.term}
+                                        onChange={handleInputChange}
+                                        required
+                                        disabled={loading.submit}
+                                        style={{ flex: 1 }}
+                                    >
+                                        <option value="FS">Fall Semester</option>
+                                        <option value="SS">Summer Semester</option>
+                                        <option value="US">Spring Semester</option>
+                                    </select>
+                                    <select
+                                        name="term_year"
+                                        value={formData.term_year}
+                                        onChange={handleInputChange}
+                                        required
+                                        disabled={loading.submit}
+                                        style={{ width: '120px' }}
+                                    >
+                                        {yearOptions().map(year => (
+                                            <option key={year} value={year}>
+                                                {year}
+                                            </option>
+                                        ))}
+                                    </select>
+                                </div>
                             </div>
                         </div>
                     </div>
@@ -388,10 +468,7 @@ const Tutor: React.FC = () => {
                                 </div>
                                 <div className="program-info-row">
                                     <span className="info-label">Registration Term:</span>
-                                    <span className="info-value">
-                                        {formData.term === 'FS' ? 'Fall Semester' : 
-                                         formData.term === 'SS' ? 'Summer Semester' : 'Spring Semester'}
-                                    </span>
+                                    <span className="info-value">{getTermDisplay()}</span>
                                 </div>
                                 <div className="program-info-row">
                                     <span className="info-label">Department:</span>
