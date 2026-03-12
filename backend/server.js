@@ -108,20 +108,14 @@ app.use('/api', programRoutes);
 app.use('/', tuteeRoutes);
 app.use('/', tutorRoutes);
 
-
-
-
 app.get('/api/programs/:programId/courses', async (req, res) => {
     try {
         const programId = parseInt(req.params.programId, 10);
-        
-        // Simple, direct query - exactly like the debug endpoint
         const { rows } = await pool.query(`
             SELECT id, code, name
             FROM courses
             WHERE program_id = $1
         `, [programId]);
-        
         console.log(`Returning ${rows.length} courses for program ${programId}`);
         res.json(rows);
     } catch (error) {
@@ -143,21 +137,9 @@ app.get('/debug/programs', async (req, res) => {
 
 app.get('/debug/pharmacy-courses', async (req, res) => {
     try {
-        // Check if program 25 exists
-        const programCheck = await pool.query(
-            'SELECT * FROM programs WHERE id = 25'
-        );
-        
-        // Count courses for program 25
-        const courseCount = await pool.query(
-            'SELECT COUNT(*) FROM courses WHERE program_id = 25'
-        );
-        
-        // Show first 5 courses
-        const sampleCourses = await pool.query(
-            'SELECT id, code, name FROM courses WHERE program_id = 25 LIMIT 5'
-        );
-        
+        const programCheck = await pool.query('SELECT * FROM programs WHERE id = 25');
+        const courseCount = await pool.query('SELECT COUNT(*) FROM courses WHERE program_id = 25');
+        const sampleCourses = await pool.query('SELECT id, code, name FROM courses WHERE program_id = 25 LIMIT 5');
         res.json({
             program_exists: programCheck.rows.length > 0,
             program: programCheck.rows[0],
@@ -260,7 +242,9 @@ app.post("/signin", async (req, res) => {
 
     try {
         const result = await pool.query(
-            `SELECT id, email, password, name as full_name, role 
+            `SELECT id, email, password, name as full_name, role,
+                    gender, year_of_study, gpa, whatsapp, term, term_year,
+                    program_level, program_id, department_id
              FROM users 
              WHERE email = $1`,
             [email]
@@ -318,9 +302,14 @@ app.post("/signup", async (req, res) => {
     }
 });
 
-// ============ TUTEE REGISTRATION (with logging) ============
+// ============ TUTEE REGISTRATION (updated with new fields) ============
 app.post('/api/tutees', async (req, res) => {
-  const { email, password, name, id_number, program_level, program_id, selectedCourses, term, department } = req.body;
+  const { 
+    email, password, name, id_number, 
+    gender, year_of_study, gpa, whatsapp,
+    program_level, program_id, selectedCourses, 
+    term, term_year, department 
+  } = req.body;
   
   console.log(' TUTEE REGISTRATION ATTEMPT');
   console.log('Email:', email);
@@ -352,18 +341,24 @@ app.post('/api/tutees', async (req, res) => {
       }
     }
 
-    // Insert user
+    // Insert user with new fields
     const userRes = await client.query(
-      `INSERT INTO users (email, password, name, id_number, role, department_id, program_level, program_id, term)
-       VALUES ($1, $2, $3, $4, 'tutee', $5, $6, $7, $8) RETURNING id`,
-      [email, hashedPassword, name, id_number, deptId, program_level, program_id, term]
+      `INSERT INTO users (
+        email, password, name, id_number, role, 
+        department_id, program_level, program_id, term, term_year,
+        gender, year_of_study, gpa, whatsapp
+      ) VALUES ($1, $2, $3, $4, 'tutee', $5, $6, $7, $8, $9, $10, $11, $12, $13) RETURNING id`,
+      [
+        email, hashedPassword, name, id_number, deptId,
+        program_level, program_id, term, term_year,
+        gender, year_of_study, gpa, whatsapp
+      ]
     );
     const userId = userRes.rows[0].id;
 
     // Insert selected courses
     if (selectedCourses && Array.isArray(selectedCourses) && selectedCourses.length > 0) {
       console.log('Attempting to insert courses:', selectedCourses);
-      
       for (const courseId of selectedCourses) {
         console.log(`Processing course ID: ${courseId}`);
         try {
@@ -415,9 +410,14 @@ app.post('/api/tutees', async (req, res) => {
   }
 });
 
-// ============ TUTOR REGISTRATION (with logging) ============
+// ============ TUTOR REGISTRATION (updated with new fields) ============
 app.post('/api/tutors', async (req, res) => {
-  const { email, password, name, id_number, program_level, program_id, selectedCourses, term, department } = req.body;
+  const { 
+    email, password, name, id_number, 
+    gender, year_of_study, gpa, whatsapp,
+    program_level, program_id, selectedCourses, 
+    term, term_year, department 
+  } = req.body;
   
   console.log(' TUTOR REGISTRATION ATTEMPT');
   console.log('Email:', email);
@@ -449,18 +449,24 @@ app.post('/api/tutors', async (req, res) => {
       }
     }
 
-    // Insert user
+    // Insert user with new fields
     const userRes = await client.query(
-      `INSERT INTO users (email, password, name, id_number, role, department_id, program_level, program_id, term)
-       VALUES ($1, $2, $3, $4, 'tutor', $5, $6, $7, $8) RETURNING id`,
-      [email, hashedPassword, name, id_number, deptId, program_level, program_id, term]
+      `INSERT INTO users (
+        email, password, name, id_number, role, 
+        department_id, program_level, program_id, term, term_year,
+        gender, year_of_study, gpa, whatsapp
+      ) VALUES ($1, $2, $3, $4, 'tutor', $5, $6, $7, $8, $9, $10, $11, $12, $13) RETURNING id`,
+      [
+        email, hashedPassword, name, id_number, deptId,
+        program_level, program_id, term, term_year,
+        gender, year_of_study, gpa, whatsapp
+      ]
     );
     const userId = userRes.rows[0].id;
 
     // Insert selected courses
     if (selectedCourses && Array.isArray(selectedCourses) && selectedCourses.length > 0) {
       console.log('Attempting to insert courses:', selectedCourses);
-      
       for (const courseId of selectedCourses) {
         console.log(`Processing course ID: ${courseId}`);
         try {
@@ -604,7 +610,6 @@ cron.schedule('0 * * * *', async () => {
     }
 });
 
-
 // ============ TUTEE SPECIFIC ENDPOINTS ============
 app.get('/api/matches/tutee/:tuteeId', authenticateToken, async (req, res) => {
   const { tuteeId } = req.params;
@@ -686,9 +691,12 @@ app.get('/api/users/:id', authenticateToken, async (req, res) => {
   try {
     const { id } = req.params;
     const user = await pool.query(
-      `SELECT u.id, u.email, u.name, u.role, u.id_number, u.avatar_url, u.last_seen, u.is_online,
+      `SELECT u.id, u.email, u.name, u.role, u.id_number, 
+              u.gender, u.year_of_study, u.gpa, u.whatsapp,
+              u.term, u.term_year,
+              u.avatar_url, u.last_seen, u.is_online,
               u.department_id, d.name as department,
-              u.program_level, u.term
+              u.program_level, u.program_id
        FROM users u
        LEFT JOIN departments d ON u.department_id = d.id
        WHERE u.id = $1`,
@@ -706,11 +714,14 @@ app.put('/api/users/:id', authenticateToken, async (req, res) => {
     return res.status(403).json({ error: 'Forbidden' });
   }
   const { id } = req.params;
-  const { name, id_number, department_id, term } = req.body;
+  const { name, id_number, department_id, term, term_year, gender, year_of_study, gpa, whatsapp } = req.body;
   try {
     await pool.query(
-      `UPDATE users SET name = $1, id_number = $2, department_id = $3, term = $4 WHERE id = $5`,
-      [name, id_number, department_id, term, id]
+      `UPDATE users SET 
+        name = $1, id_number = $2, department_id = $3, term = $4, term_year = $5,
+        gender = $6, year_of_study = $7, gpa = $8, whatsapp = $9
+       WHERE id = $10`,
+      [name, id_number, department_id, term, term_year, gender, year_of_study, gpa, whatsapp, id]
     );
     res.json({ success: true });
   } catch (err) {

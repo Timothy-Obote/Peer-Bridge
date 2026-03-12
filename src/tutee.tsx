@@ -8,7 +8,7 @@ const Tutee: React.FC = () => {
     const navigate = useNavigate();
     const currentYear = new Date().getFullYear();
 
-    // Form state (camelCase for internal consistency)
+    // Form state
     const [formData, setFormData] = useState<TuteeRegistrationData>({
         email: "",
         password: "",
@@ -16,6 +16,8 @@ const Tutee: React.FC = () => {
         idNumber: "",
         gender: "",
         year_of_study: "",
+        gpa: "",
+        whatsapp: "",                          // New WhatsApp field
         program_level: "",
         program_id: "",
         selected_courses: [],
@@ -38,7 +40,7 @@ const Tutee: React.FC = () => {
     });
     const [status, setStatus] = useState({ type: "", message: "" });
 
-    // Generate year options (current year and next 5 years)
+    // Year options
     const yearOptions = () => {
         const years = [];
         for (let i = 0; i < 5; i++) {
@@ -53,11 +55,10 @@ const Tutee: React.FC = () => {
         fetchPrograms();
     }, []);
 
-    // Fetch courses when program is selected, and reset selected courses
+    // Fetch courses when program is selected
     useEffect(() => {
         if (formData.program_id) {
             fetchProgramCourses(Number(formData.program_id));
-            // Clear previously selected courses when program changes
             setFormData(prev => ({ ...prev, selected_courses: [] }));
         } else {
             setAvailableCourses([]);
@@ -84,8 +85,6 @@ const Tutee: React.FC = () => {
             if (!response.ok) throw new Error("Failed to fetch courses");
             const data = await response.json();
 
-            // Transform API response to match Course interface
-            // Backend returns { id, code, name } but frontend expects { id, unit_code, unit_name }
             const transformedCourses: Course[] = data.map((item: any) => ({
                 id: item.id,
                 unit_code: item.code || item.unit_code || "",
@@ -95,7 +94,6 @@ const Tutee: React.FC = () => {
 
             setAvailableCourses(transformedCourses);
 
-            // Update department field with selected program's name
             const allPrograms = [...programs.undergraduate, ...programs.graduate];
             const selectedProgram = allPrograms.find(p => p.id === programId);
             if (selectedProgram) {
@@ -171,10 +169,16 @@ const Tutee: React.FC = () => {
             return;
         }
 
+        // Validate GPA
+        const gpaNum = parseFloat(formData.gpa);
+        if (isNaN(gpaNum) || gpaNum < 0 || gpaNum > 4.0) {
+            showStatus("error", "Please enter a valid GPA between 0.0 and 4.0");
+            return;
+        }
+
         console.log("Submitting registration with department:", formData.department);
         console.log("Current formData:", formData);
 
-        // Map the form data to match backend expectations
         const submissionData = {
             email: formData.email,
             password: formData.password,
@@ -182,6 +186,8 @@ const Tutee: React.FC = () => {
             id_number: formData.idNumber || "",
             gender: formData.gender,
             year_of_study: formData.year_of_study,
+            gpa: formData.gpa,
+            whatsapp: formData.whatsapp,               // Include WhatsApp
             program_level: formData.program_level,
             program_id: formData.program_id,
             selectedCourses: formData.selected_courses || [],
@@ -207,6 +213,8 @@ const Tutee: React.FC = () => {
                 idNumber: "",
                 gender: "",
                 year_of_study: "",
+                gpa: "",
+                whatsapp: "",                         // Reset WhatsApp
                 program_level: "",
                 program_id: "",
                 selected_courses: [],
@@ -351,6 +359,39 @@ const Tutee: React.FC = () => {
                                 </select>
                             </div>
 
+                            {/* GPA Field */}
+                            <div className="form-group">
+                                <label>Current GPA <span className="required">*</span></label>
+                                <input
+                                    type="number"
+                                    name="gpa"
+                                    value={formData.gpa}
+                                    onChange={handleInputChange}
+                                    placeholder="e.g., 3.5"
+                                    step="0.01"
+                                    min="0"
+                                    max="4.0"
+                                    required
+                                    disabled={loading.submit}
+                                />
+                                <span className="field-hint">Enter your cumulative GPA (0.0 - 4.0)</span>
+                            </div>
+
+                            {/* WhatsApp Number Field */}
+                            <div className="form-group">
+                                <label>WhatsApp Number <span className="required">*</span></label>
+                                <input
+                                    type="tel"
+                                    name="whatsapp"
+                                    value={formData.whatsapp}
+                                    onChange={handleInputChange}
+                                    placeholder="e.g., +254712345678"
+                                    required
+                                    disabled={loading.submit}
+                                />
+                                <span className="field-hint">Include country code (e.g., +254...)</span>
+                            </div>
+
                             <div className="form-group">
                                 <label>Academic Semester <span className="required">*</span></label>
                                 <div style={{ display: 'flex', gap: '10px' }}>
@@ -385,7 +426,7 @@ const Tutee: React.FC = () => {
                         </div>
                     </div>
 
-                    {/* SECTION 2: ACADEMIC PROGRAM */}
+                    {/* SECTION 2: ACADEMIC PROGRAM (unchanged) */}
                     <div className="form-section">
                         <div className="section-title">
                             <span className="section-number">02</span>
@@ -439,7 +480,7 @@ const Tutee: React.FC = () => {
                         </div>
                     </div>
 
-                    {/* SECTION 3: COURSE REGISTRATION */}
+                    {/* SECTION 3: COURSE REGISTRATION (unchanged) */}
                     {formData.program_id && (
                         <div className="form-section">
                             <div className="section-title">
@@ -563,9 +604,7 @@ const Tutee: React.FC = () => {
                                     Processing Registration...
                                 </>
                             ) : (
-                                <>
-                                    Submit Registration
-                                </>
+                                "Submit Registration"
                             )}
                         </button>
                         <p className="form-notice">

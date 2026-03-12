@@ -24,6 +24,8 @@ export interface TuteeRegistrationData {
     idNumber: string;
     gender: string;
     year_of_study: string;
+    gpa: string;
+    whatsapp: string;
     program_level: 'undergraduate' | 'graduate' | '';
     program_id: number | '';
     selected_courses: number[];
@@ -39,6 +41,8 @@ export interface TutorRegistrationData {
     idNumber: string;
     gender: string;
     year_of_study: string;
+    gpa: string;
+    whatsapp: string;
     term: 'FS' | 'SS' | 'US';
     term_year: string;
     program_level: 'undergraduate' | 'graduate' | '';
