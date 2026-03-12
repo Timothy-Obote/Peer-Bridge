@@ -37,8 +37,8 @@ app.use(cors({
         'http://localhost:3000',
         'http://localhost:3001',
         'http://localhost:5001',
-        'https://peerbridgepacs.vercel.app',
-        'https://peerbridge-5zyu38rxf-gors-projects-57d8ecd6.vercel.app'
+        'pacspeertutoring.vercel.app',
+        'peerbridge-n9sjvyrba-gors-projects-57d8ecd6.vercel.app'
     ],
     credentials: true
 }));
@@ -82,7 +82,7 @@ const io = new Server(server, {
         origin: [
             'http://localhost:5173', 
             'http://127.0.0.1:5173',
-            'https://peerbridgepacs.vercel.app'
+            'https://pacspeertutoring.vercel.app'
         ],
         credentials: true,
         methods: ["GET", "POST"] 
