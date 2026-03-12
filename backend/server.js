@@ -111,16 +111,13 @@ app.use('/', tutorRoutes);
 
 app.get('/api/programs/:programId/courses', async (req, res) => {
     try {
-        const { programId } = req.params;
-        console.log('Raw programId:', programId, 'Type:', typeof programId);
-        console.log('As number:', Number(programId));
+        const programId = parseInt(req.params.programId, 10);
+        console.log('Program ID (parsed):', programId, 'Type:', typeof programId);
         
-        // Test query to verify
-        const testQuery = await pool.query(
-            'SELECT COUNT(*) FROM courses WHERE program_id = $1',
-            [programId]
-        );
-        console.log('Count from test query:', testQuery.rows[0].count);
+        // Validate it's a number
+        if (isNaN(programId)) {
+            return res.status(400).json({ message: 'Invalid program ID' });
+        }
         
         const { rows } = await pool.query(`
             SELECT id, code, name
@@ -129,14 +126,13 @@ app.get('/api/programs/:programId/courses', async (req, res) => {
             ORDER BY code
         `, [programId]);
         
-        console.log(`Main query returned ${rows.length} courses`);
+        console.log(`Returning ${rows.length} courses for program ${programId}`);
         res.json(rows);
     } catch (error) {
         console.error('Error:', error);
         res.status(500).json({ message: 'Error fetching courses' });
     }
 });
-
 // ============ DEBUG ENDPOINTS ============
 app.get('/debug/programs', async (req, res) => {
     try {
