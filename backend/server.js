@@ -108,20 +108,24 @@ app.use('/api', programRoutes);
 app.use('/', tuteeRoutes);
 app.use('/', tutorRoutes);
 
-// ============ GET COURSES BY PROGRAM ID ============
+
 app.get('/api/programs/:programId/courses', async (req, res) => {
     try {
         const { programId } = req.params;
+        console.log('Fetching courses for program:', programId);
+        
         const { rows } = await pool.query(`
             SELECT id, code, name
             FROM courses
             WHERE program_id = $1
-            ORDER BY code
+            -- ORDER BY code   /* Temporarily disabled */
         `, [programId]);
+        
+        console.log(`Returning ${rows.length} courses`);
         res.json(rows);
     } catch (error) {
-        console.error('Error in /api/programs/:programId/courses:', error);
-        res.status(500).json({ message: 'Error fetching courses', error: error.message });
+        console.error('Error:', error);
+        res.status(500).json({ message: 'Error fetching courses' });
     }
 });
 
