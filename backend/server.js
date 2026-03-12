@@ -136,6 +136,34 @@ app.get('/debug/programs', async (req, res) => {
     }
 });
 
+app.get('/debug/pharmacy-courses', async (req, res) => {
+    try {
+        // Check if program 25 exists
+        const programCheck = await pool.query(
+            'SELECT * FROM programs WHERE id = 25'
+        );
+        
+        // Count courses for program 25
+        const courseCount = await pool.query(
+            'SELECT COUNT(*) FROM courses WHERE program_id = 25'
+        );
+        
+        // Show first 5 courses
+        const sampleCourses = await pool.query(
+            'SELECT id, code, name FROM courses WHERE program_id = 25 LIMIT 5'
+        );
+        
+        res.json({
+            program_exists: programCheck.rows.length > 0,
+            program: programCheck.rows[0],
+            total_courses: courseCount.rows[0].count,
+            sample_courses: sampleCourses.rows
+        });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
 // Health check
 app.get("/health", (req, res) => {
     res.json({ status: "ok", time: new Date().toISOString() });
