@@ -13,11 +13,14 @@ interface UserProfile {
   email: string;
   name: string;
   id_number?: string;
+  gender?: string;
+  year_of_study?: string;
+  gpa?: string;
   whatsapp?: string;
+  term?: string;
+  term_year?: string;
   department?: string | null;
-  term?: string | null;
-  term_year?: string | null;
-  avatar_url?: string;          // kept for future use
+  avatar_url?: string;
   is_online?: boolean;
   last_seen?: string;
 }
@@ -86,7 +89,7 @@ const TutorProfile = () => {
   return (
     <div className="profile-page">
       <div className="profile-card">
-        {/* Avatar Section - Using first letter */}
+        {/* Avatar Section - using first letter */}
         <div className="profile-avatar-section">
           <div className="avatar-wrapper">
             <div className="initials-avatar">{getInitials()}</div>
@@ -107,7 +110,7 @@ const TutorProfile = () => {
           <p className="profile-phone">{profile?.whatsapp || "Phone not provided"}</p>
         </div>
 
-        {/* Last seen (optional) */}
+        {/* Last seen */}
         {profile?.last_seen && (
           <p className="profile-last-seen">
             Last seen: {new Date(profile.last_seen).toLocaleString()}
@@ -121,12 +124,24 @@ const TutorProfile = () => {
             <span className="detail-value">{profile?.id_number || "—"}</span>
           </div>
           <div className="detail-item">
+            <span className="detail-label">Department</span>
+            <span className="detail-value">{profile?.department || "—"}</span>
+          </div>
+          <div className="detail-item">
             <span className="detail-label">Semester</span>
             <span className="detail-value">{getFullSemester()}</span>
           </div>
           <div className="detail-item">
-            <span className="detail-label">Department</span>
-            <span className="detail-value">{profile?.department || "Not set"}</span>
+            <span className="detail-label">Gender</span>
+            <span className="detail-value">{profile?.gender || "—"}</span>
+          </div>
+          <div className="detail-item">
+            <span className="detail-label">Year of Study</span>
+            <span className="detail-value">{profile?.year_of_study || "—"}</span>
+          </div>
+          <div className="detail-item">
+            <span className="detail-label">GPA</span>
+            <span className="detail-value">{profile?.gpa || "—"}</span>
           </div>
         </div>
 

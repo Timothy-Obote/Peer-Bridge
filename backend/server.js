@@ -171,7 +171,64 @@ app.get('/test-db', async (req, res) => {
 app.get("/admin/overview", async (req, res) => {
     try {
         const users = await pool.query(`
-            SELECT u.id, u.email, u.name, u.role, u.program_level, u.term, u.created_at,
+            SELECT u.id, u.email, u.name, u.role, u.program_level, u.term, u.term_year,
+                   u.gender, u.year_of_study, u.gpa, u.whatsapp,
+                   u.created_at,
+                   d.name as department,
+                   COALESCE(u.program_id::text, 'N/A') as program_id
+            FROM users u
+            LEFT JOIN departments d ON u.department_id = d.id
+            ORDER BY u.created_at DESC
+        `);
+
+        const usersWithCourses = await Promise.all(users.rows.map(async (user) => {
+            let courses = [];
+            if (user.role === 'tutor') {
+                const result = await pool.query(`
+                    SELECT c.code, c.name
+                    FROM tutor_courses tc
+                    JOIN courses c ON tc.course_id = c.id
+                    WHERE tc.tutor_id = $1
+                `, [user.id]);
+                courses = result.rows.map(r => `${r.code} - ${r.name}`).join(', ') || 'None';
+            } else if (user.role === 'tutee') {
+                const result = await pool.query(`
+                    SELECT c.code, c.name
+                    FROM tutee_courses tc
+                    JOIN courses c ON tc.course_id = c.id
+                    WHERE tc.tutee_id = $1
+                `, [user.id]);
+                courses = result.rows.map(r => `${r.code} - ${r.name}`).join(', ') || 'None';
+            }
+            return { ...user, units: courses };
+        }));
+
+        const tutors = usersWithCourses.filter(u => u.role === 'tutor');
+        const tutees = usersWithCourses.filter(u => u.role === 'tutee');
+
+        res.json({
+            summary: {
+                total_users: usersWithCourses.length,
+                tutors: tutors.length,
+                tutees: tutees.length
+            },
+            tutors,
+            tutees
+        });
+    } catch (err) {
+        console.error('Admin overview error:', err);
+        res.status(500).json({ message: "Server error", error: String(err) });
+    }
+});
+
+// ============ ADMIN OVERVIEW ============
+app.get("/admin/overview", async (req, res) => {
+    try {
+        const users = await pool.query(`
+            SELECT u.id, u.email, u.name, u.role, u.program_level, 
+                   u.term, u.term_year,
+                   u.gender, u.year_of_study, u.gpa, u.whatsapp,
+                   u.created_at,
                    d.name as department,
                    COALESCE(u.program_id::text, 'N/A') as program_id
             FROM users u

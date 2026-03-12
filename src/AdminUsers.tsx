@@ -1,11 +1,17 @@
 import { useEffect, useState } from "react";
 
+// Extended interfaces to include new fields
 interface Tutor {
   id: number;
   name: string;
   email: string;
   department: string;
   term: string;
+  term_year?: string;          // new
+  gender?: string;             // new
+  year_of_study?: string;      // new
+  gpa?: string;                // new
+  whatsapp?: string;           // new
   units: string;
   created_at: string;
 }
@@ -16,6 +22,11 @@ interface Tutee {
   email: string;
   department: string;
   term: string;
+  term_year?: string;          // new
+  gender?: string;             // new
+  year_of_study?: string;      // new
+  gpa?: string;                // new
+  whatsapp?: string;           // new
   units: string;
   created_at: string;
 }
@@ -46,6 +57,18 @@ const AdminUsers = () => {
     fetchUsers();
   }, []);
 
+  // Helper to format full semester (e.g., "Fall 2026")
+  const formatSemester = (term?: string, term_year?: string) => {
+    if (!term && !term_year) return "—";
+    const termMap: Record<string, string> = {
+      FS: "Fall",
+      SS: "Summer",
+      US: "Spring",
+    };
+    const termName = term ? (termMap[term] || term) : "";
+    return `${termName} ${term_year || ""}`.trim() || "—";
+  };
+
   if (loading) return <div className="loading-screen">Loading users...</div>;
   if (error) return <div className="error-message">Error: {error}</div>;
 
@@ -63,7 +86,11 @@ const AdminUsers = () => {
               <th>Name</th>
               <th>Email</th>
               <th>Department</th>
-              <th>Term</th>
+              <th>Semester</th>
+              <th>Gender</th>
+              <th>Year</th>
+              <th>GPA</th>
+              <th>WhatsApp</th>
               <th>Units</th>
               <th>Created At</th>
             </tr>
@@ -75,7 +102,11 @@ const AdminUsers = () => {
                 <td>{t.name}</td>
                 <td>{t.email}</td>
                 <td>{t.department}</td>
-                <td>{t.term}</td>
+                <td>{formatSemester(t.term, t.term_year)}</td>
+                <td>{t.gender || "—"}</td>
+                <td>{t.year_of_study || "—"}</td>
+                <td>{t.gpa || "—"}</td>
+                <td>{t.whatsapp || "—"}</td>
                 <td>{t.units}</td>
                 <td>{new Date(t.created_at).toLocaleString()}</td>
               </tr>
@@ -93,7 +124,11 @@ const AdminUsers = () => {
               <th>Name</th>
               <th>Email</th>
               <th>Department</th>
-              <th>Term</th>
+              <th>Semester</th>
+              <th>Gender</th>
+              <th>Year</th>
+              <th>GPA</th>
+              <th>WhatsApp</th>
               <th>Units</th>
               <th>Created At</th>
             </tr>
@@ -105,7 +140,11 @@ const AdminUsers = () => {
                 <td>{t.name}</td>
                 <td>{t.email}</td>
                 <td>{t.department}</td>
-                <td>{t.term}</td>
+                <td>{formatSemester(t.term, t.term_year)}</td>
+                <td>{t.gender || "—"}</td>
+                <td>{t.year_of_study || "—"}</td>
+                <td>{t.gpa || "—"}</td>
+                <td>{t.whatsapp || "—"}</td>
                 <td>{t.units}</td>
                 <td>{new Date(t.created_at).toLocaleString()}</td>
               </tr>
