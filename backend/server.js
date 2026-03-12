@@ -109,28 +109,62 @@ app.use('/', tuteeRoutes);
 app.use('/', tutorRoutes);
 
 
-app.get('/api/programs/:programId/courses', async (req, res) => {
+app.get('/debug/diagnose-program/:id', async (req, res) => {
     try {
-        const programId = parseInt(req.params.programId, 10);
-        console.log('Program ID (parsed):', programId, 'Type:', typeof programId);
+        const programId = parseInt(req.params.id, 10);
+        const results = {};
         
-        // Validate it's a number
-        if (isNaN(programId)) {
-            return res.status(400).json({ message: 'Invalid program ID' });
-        }
+        // 1. Check if program exists
+        const program = await pool.query(
+            'SELECT * FROM programs WHERE id = $1',
+            [programId]
+        );
+        results.program_exists = program.rows.length > 0;
+        results.program = program.rows[0];
         
-        const { rows } = await pool.query(`
-            SELECT id, code, name
-            FROM courses
-            WHERE program_id = $1
-            ORDER BY code
-        `, [programId]);
+        // 2. Count courses using different methods
+        const count1 = await pool.query(
+            'SELECT COUNT(*) FROM courses WHERE program_id = $1',
+            [programId]
+        );
+        results.count_direct = count1.rows[0].count;
         
-        console.log(`Returning ${rows.length} courses for program ${programId}`);
-        res.json(rows);
-    } catch (error) {
-        console.error('Error:', error);
-        res.status(500).json({ message: 'Error fetching courses' });
+        const count2 = await pool.query(
+            'SELECT COUNT(*) FROM courses WHERE program_name = $1',
+            [program.rows[0]?.program_name]
+        );
+        results.count_by_name = count2.rows[0].count;
+        
+        // 3. Try with and without ORDER BY
+        const withOrder = await pool.query(
+            'SELECT id, code, name FROM courses WHERE program_id = $1 ORDER BY code LIMIT 5',
+            [programId]
+        );
+        results.sample_with_order = withOrder.rows;
+        
+        const withoutOrder = await pool.query(
+            'SELECT id, code, name FROM courses WHERE program_id = $1 LIMIT 5',
+            [programId]
+        );
+        results.sample_without_order = withoutOrder.rows;
+        
+        // 4. Check for any NULL program_ids
+        const nullCount = await pool.query(
+            'SELECT COUNT(*) FROM courses WHERE program_name = $1 AND program_id IS NULL',
+            [program.rows[0]?.program_name]
+        );
+        results.null_program_ids = nullCount.rows[0].count;
+        
+        // 5. Get all distinct program_ids for this program name
+        const distinctIds = await pool.query(
+            'SELECT DISTINCT program_id FROM courses WHERE program_name = $1',
+            [program.rows[0]?.program_name]
+        );
+        results.distinct_program_ids = distinctIds.rows.map(r => r.program_id);
+        
+        res.json(results);
+    } catch (err) {
+        res.status(500).json({ error: err.message });
     }
 });
 // ============ DEBUG ENDPOINTS ============
