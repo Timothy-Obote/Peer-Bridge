@@ -19,16 +19,21 @@ export const tuteeService = {
         return response.json();
     },
 
-    // Register tutee
+    // Register tutee (updated with all new fields)
     async registerTutee(data: {
         email: string;
         password: string;
         name: string;
-        id_number: string;          //  matches backend
+        id_number: string;
+        gender: string;               // new
+        year_of_study: string;         // new
+        gpa: string;                   // new
+        whatsapp: string;              // new
         program_level: string;
         program_id: number;
-        selectedCourses: number[];  // matches backend
+        selectedCourses: number[];
         term: string;
+        term_year: string;             // new
         department: string;
     }) {
         // Debug logs
@@ -36,10 +41,15 @@ export const tuteeService = {
         console.log('Email:', data.email);
         console.log('Name:', data.name);
         console.log('ID Number:', data.id_number);
+        console.log('Gender:', data.gender);
+        console.log('Year of Study:', data.year_of_study);
+        console.log('GPA:', data.gpa);
+        console.log('WhatsApp:', data.whatsapp);
         console.log('Program Level:', data.program_level);
         console.log('Program ID:', data.program_id);
         console.log('Selected Courses:', data.selectedCourses);
         console.log('Term:', data.term);
+        console.log('Term Year:', data.term_year);
         console.log('Department:', data.department);
 
         const payload = {
@@ -47,10 +57,15 @@ export const tuteeService = {
             password: data.password,
             name: data.name,
             id_number: data.id_number,
+            gender: data.gender,
+            year_of_study: data.year_of_study,
+            gpa: data.gpa,
+            whatsapp: data.whatsapp,
             program_level: data.program_level,
             program_id: data.program_id,
             selectedCourses: data.selectedCourses,
             term: data.term,
+            term_year: data.term_year,
             department: data.department
         };
 
