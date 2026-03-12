@@ -37,8 +37,8 @@ app.use(cors({
         'http://localhost:3000',
         'http://localhost:3001',
         'http://localhost:5001',
-        'pacspeertutoring.vercel.app',
-        'peerbridge-n9sjvyrba-gors-projects-57d8ecd6.vercel.app'
+        'https://pacspeertutoring.vercel.app',
+        'https://peerbridge-n9sjvyrba-gors-projects-57d8ecd6.vercel.app'
     ],
     credentials: true
 }));
