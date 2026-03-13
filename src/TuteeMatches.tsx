@@ -23,7 +23,6 @@ const TuteeMatches = () => {
   const userStr = localStorage.getItem("user");
   const token = localStorage.getItem("token");
 
-  // Fetch data function – can be reused if needed
   const fetchMatches = useCallback(async () => {
     if (!userStr || !token) {
       navigate("/");
@@ -32,7 +31,6 @@ const TuteeMatches = () => {
 
     try {
       const user = JSON.parse(userStr);
-
       const matchesRes = await fetch(
         `${import.meta.env.VITE_API_URL}/api/matches/tutee/${user.id}`,
         { headers: { Authorization: `Bearer ${token}` } }
@@ -57,6 +55,10 @@ const TuteeMatches = () => {
       month: "short",
       day: "numeric",
     });
+
+  const goToChat = (matchId: number) => {
+    navigate(`/chat/${matchId}`);
+  };
 
   if (loading) return <div className="loading">Loading your matches...</div>;
   if (error) return <div className="error">Error: {error}</div>;
@@ -86,6 +88,14 @@ const TuteeMatches = () => {
                       </li>
                     ))}
                   </ul>
+                </div>
+                <div className="match-actions">
+                  <button
+                    className="chat-button"
+                    onClick={() => goToChat(match.id)}
+                  >
+                    💬 Start Chat
+                  </button>
                 </div>
               </div>
             ))}

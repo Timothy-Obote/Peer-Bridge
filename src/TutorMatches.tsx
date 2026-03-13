@@ -30,12 +30,11 @@ const TutorMatches = () => {
   const [suggestions, setSuggestions] = useState<Suggestion[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
-  const [actionInProgress, setActionInProgress] = useState<number | null>(null); // track which suggestion is being processed
+  const [actionInProgress, setActionInProgress] = useState<number | null>(null);
 
   const userStr = localStorage.getItem("user");
   const token = localStorage.getItem("token");
 
-  // Fetch data function (can be reused)
   const fetchData = useCallback(async () => {
     if (!userStr || !token) {
       navigate("/");
@@ -84,7 +83,7 @@ const TutorMatches = () => {
         }
       );
       if (!res.ok) throw new Error("Accept failed");
-      await fetchData(); // refresh data after success
+      await fetchData();
     } catch (err: any) {
       alert("Error accepting suggestion: " + err.message);
     } finally {
@@ -109,6 +108,10 @@ const TutorMatches = () => {
     } finally {
       setActionInProgress(null);
     }
+  };
+
+  const goToChat = (matchId: number) => {
+    navigate(`/chat/${matchId}`);
   };
 
   const formatDate = (iso: string) =>
@@ -147,6 +150,14 @@ const TutorMatches = () => {
                       </li>
                     ))}
                   </ul>
+                </div>
+                <div className="match-actions">
+                  <button
+                    className="chat-button"
+                    onClick={() => goToChat(match.id)}
+                  >
+                    💬 Start Chat
+                  </button>
                 </div>
               </div>
             ))}
