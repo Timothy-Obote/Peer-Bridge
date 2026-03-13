@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { tuteeService } from "./services/tuteeService";
+import { generateAndStoreKeys } from "./utils/encryption"; // adjust path if needed
 import type { Program, Course, TuteeRegistrationData } from "./types/course.types";
 import "./tutee.css";
 
@@ -17,7 +18,7 @@ const Tutee: React.FC = () => {
         gender: "",
         year_of_study: "",
         gpa: "",
-        whatsapp: "",                          // New WhatsApp field
+        whatsapp: "",
         program_level: "",
         program_id: "",
         selected_courses: [],
@@ -187,7 +188,7 @@ const Tutee: React.FC = () => {
             gender: formData.gender,
             year_of_study: formData.year_of_study,
             gpa: formData.gpa,
-            whatsapp: formData.whatsapp,               // Include WhatsApp
+            whatsapp: formData.whatsapp,
             program_level: formData.program_level,
             program_id: formData.program_id,
             selectedCourses: formData.selected_courses || [],
@@ -202,7 +203,20 @@ const Tutee: React.FC = () => {
         showStatus("info", "Processing registration...");
 
         try {
-            await tuteeService.registerTutee(submissionData as any);
+            const result = await tuteeService.registerTutee(submissionData as any);
+
+            // Store token and user if returned
+            if (result.token) {
+                localStorage.setItem('token', result.token);
+                localStorage.setItem('user', JSON.stringify(result.user));
+            }
+
+            // Generate encryption keys if not already present
+            const existingPrivateKey = localStorage.getItem('privateKey');
+            if (!existingPrivateKey) {
+                await generateAndStoreKeys();
+            }
+
             showStatus("success", "Registration successful! Redirecting...");
 
             // Reset form
@@ -214,7 +228,7 @@ const Tutee: React.FC = () => {
                 gender: "",
                 year_of_study: "",
                 gpa: "",
-                whatsapp: "",                         // Reset WhatsApp
+                whatsapp: "",
                 program_level: "",
                 program_id: "",
                 selected_courses: [],
@@ -426,7 +440,7 @@ const Tutee: React.FC = () => {
                         </div>
                     </div>
 
-                    {/* SECTION 2: ACADEMIC PROGRAM (unchanged) */}
+                    {/* SECTION 2: ACADEMIC PROGRAM */}
                     <div className="form-section">
                         <div className="section-title">
                             <span className="section-number">02</span>
@@ -480,7 +494,7 @@ const Tutee: React.FC = () => {
                         </div>
                     </div>
 
-                    {/* SECTION 3: COURSE REGISTRATION (unchanged) */}
+                    {/* SECTION 3: COURSE REGISTRATION */}
                     {formData.program_id && (
                         <div className="form-section">
                             <div className="section-title">

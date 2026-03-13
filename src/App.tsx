@@ -19,6 +19,7 @@ import AdminUsers from "./AdminUsers";
 import AdminReports from "./AdminReports";
 import AdminSettings from "./AdminSettings";
 
+
 import { useState, useEffect } from "react";
 import {
   BrowserRouter as Router,
@@ -28,6 +29,7 @@ import {
   useNavigate,
 } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
+import ChatInterface from "./ChatInterface";
 
 // ---------------- HOME COMPONENT (unchanged) ----------------
 function Home() {
@@ -320,6 +322,7 @@ export default function App() {
             </ProtectedRoute>
           }
         />
+        <Route path="/chat/:matchId" element={<ChatInterface />} />
 
         {/* Catch all */}
         <Route path="*" element={<Navigate to="/" replace />} />

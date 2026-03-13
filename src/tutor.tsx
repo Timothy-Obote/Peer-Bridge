@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { tutorService } from "./services/tutorService";
+import { generateAndStoreKeys } from "./utils/encryption"; // adjust path if needed
 import type { Program, Course, TutorRegistrationData } from "./types/course.types";
 import "./tutor.css";
 
@@ -17,7 +18,7 @@ const Tutor: React.FC = () => {
         gender: "",
         year_of_study: "",
         gpa: "",
-        whatsapp: "",                          // New WhatsApp field
+        whatsapp: "",
         term: "FS",
         term_year: currentYear.toString(),
         program_level: "",
@@ -187,7 +188,7 @@ const Tutor: React.FC = () => {
             gender: formData.gender,
             year_of_study: formData.year_of_study,
             gpa: formData.gpa,
-            whatsapp: formData.whatsapp,               // Include WhatsApp
+            whatsapp: formData.whatsapp,
             program_level: formData.program_level,
             program_id: formData.program_id,
             selectedCourses: formData.selected_courses || [],
@@ -208,7 +209,20 @@ const Tutor: React.FC = () => {
         showStatus("info", "Processing registration...");
 
         try {
-            await tutorService.registerTutor(submissionData as any);
+            const result = await tutorService.registerTutor(submissionData as any);
+
+            // Store token and user (the service returns them)
+            if (result.token) {
+                localStorage.setItem('token', result.token);
+                localStorage.setItem('user', JSON.stringify(result.user));
+            }
+
+            // Generate encryption keys if not already present
+            const existingPrivateKey = localStorage.getItem('privateKey');
+            if (!existingPrivateKey) {
+                await generateAndStoreKeys();
+            }
+
             showStatus("success", "Registration successful! Redirecting...");
 
             // Reset form
@@ -220,7 +234,7 @@ const Tutor: React.FC = () => {
                 gender: "",
                 year_of_study: "",
                 gpa: "",
-                whatsapp: "",                         // Reset WhatsApp
+                whatsapp: "",
                 program_level: "",
                 program_id: "",
                 selected_courses: [],

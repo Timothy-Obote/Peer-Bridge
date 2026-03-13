@@ -1,7 +1,8 @@
 // src/SignIn.tsx
 import React, { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import "./SignIn.css"; // optional styling
+import { generateAndStoreKeys } from "./utils/encryption"; // adjust path if needed 
+import "./SignIn.css";
 
 export default function SignIn() {
   const [email, setEmail] = useState("");
@@ -32,6 +33,17 @@ export default function SignIn() {
 
       localStorage.setItem("user", JSON.stringify(data.user));
       if (data.token) localStorage.setItem("token", data.token);
+
+      // Generate encryption keys if not already present
+      const existingPrivateKey = localStorage.getItem('privateKey');
+      if (!existingPrivateKey) {
+        try {
+          await generateAndStoreKeys();
+        } catch (keyErr) {
+          console.error("Key generation failed, but login succeeded:", keyErr);
+          // Continue login even if key generation fails – chat can fall back to unencrypted
+        }
+      }
 
       const role = data.user?.role;
       // Redirect based on role

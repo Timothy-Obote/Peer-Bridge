@@ -165,6 +165,7 @@ async function generateSuggestions() {
  * @param {number} suggestionId - ID of the suggestion to accept
  * @returns {Object} result with success and matchId
  */
+
 async function acceptSuggestion(suggestionId) {
     const client = await pool.connect();
     try {
@@ -195,7 +196,7 @@ async function acceptSuggestion(suggestionId) {
             throw new Error('Tutee already has 2 tutors');
         }
 
-        // Drop tutor's current courses (as per requirement: he has to drop existing units)
+        // Drop tutor's current courses
         await client.query(
             `DELETE FROM tutor_courses WHERE tutor_id = $1`,
             [tutor_id]
@@ -220,6 +221,13 @@ async function acceptSuggestion(suggestionId) {
             [matchId, course_id]
         );
 
+        // Create a chat room for this match
+        const chat = await client.query(
+            `INSERT INTO chats (match_id) VALUES ($1) RETURNING id`,
+            [matchId]
+        );
+        const chatId = chat.rows[0].id;
+
         // Update suggestion status
         await client.query(
             `UPDATE suggestions SET status = 'accepted' WHERE id = $1`,
@@ -227,7 +235,7 @@ async function acceptSuggestion(suggestionId) {
         );
 
         await client.query('COMMIT');
-        return { success: true, matchId };
+        return { success: true, matchId, chatId };
     } catch (err) {
         await client.query('ROLLBACK');
         throw err;

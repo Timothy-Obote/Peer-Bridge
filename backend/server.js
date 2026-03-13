@@ -6,6 +6,8 @@ const jwt = require("jsonwebtoken");
 const http = require("http");
 const { Server } = require("socket.io");
 const cron = require("node-cron");
+const onlineUsers = new Map();
+const cloudinary = require('cloudinary').v2;
 require("dotenv").config();
 
 // Import route files
@@ -27,6 +29,39 @@ const authenticateToken = (req, res, next) => {
     next();
   });
 };
+
+cloudinary.config({
+  cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
+  api_key: process.env.CLOUDINARY_API_KEY,
+  api_secret: process.env.CLOUDINARY_API_SECRET,
+});
+
+// Endpoint to generate upload signature (signed upload)
+app.post('/api/upload-signature', authenticateToken, (req, res) => {
+  const timestamp = Math.round(Date.now() / 1000);
+  const signature = cloudinary.utils.api_sign_request(
+    { timestamp },
+    process.env.CLOUDINARY_API_SECRET
+  );
+  res.json({
+    timestamp,
+    signature,
+    apiKey: process.env.CLOUDINARY_API_KEY,
+    cloudName: process.env.CLOUDINARY_CLOUD_NAME
+  });
+});
+
+// public key E2EE
+app.put('/api/users/me/public-key', authenticateToken, async (req, res) => {
+  const { publicKey } = req.body;
+  try {
+    await pool.query('UPDATE users SET public_key = $1 WHERE id = $2', [publicKey, req.user.id]);
+    res.json({ success: true });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: err.message });
+  }
+});
 
 // ============ MIDDLEWARE ============
 app.use(cors({
@@ -792,6 +827,116 @@ app.put('/api/tutor/:id/courses', authenticateToken, async (req, res) => {
     res.status(500).json({ error: err.message });
   } finally {
     client.release();
+  }
+});
+
+// ==== Chat eventhandlers ===
+io.on("connection", (socket) => {
+
+  // User comes online
+  socket.on("user-online", (userId) => {
+    onlineUsers.set(userId, socket.id);
+    socket.userId = userId;
+  });
+
+  // Join a specific chat room
+  socket.on("join-chat", ({ chatId, userId }) => {
+    socket.join(`chat:${chatId}`);
+    console.log(`User ${userId} joined chat room ${chatId}`);
+  });
+
+  // Send a message
+  socket.on("send-message", async (data, ack) => {
+    try {
+      const { chatId, senderId, recipientId, encryptedMessage, mediaUrl, mediaType } = data;
+
+      // Save to database
+      const result = await pool.query(
+        `INSERT INTO messages (chat_id, sender_id, recipient_id, encrypted_message, media_url, media_type, status)
+         VALUES ($1, $2, $3, $4, $5, $6, 'sent') RETURNING id, created_at`,
+        [chatId, senderId, recipientId, encryptedMessage, mediaUrl, mediaType]
+      );
+      const messageId = result.rows[0].id;
+
+      // Emit to recipient if online
+      const recipientSocketId = onlineUsers.get(recipientId);
+      if (recipientSocketId) {
+        io.to(recipientSocketId).emit("new-message", {
+          messageId,
+          chatId,
+          senderId,
+          encryptedMessage,
+          mediaUrl,
+          mediaType,
+          status: 'sent',
+          createdAt: result.rows[0].created_at,
+        });
+      }
+
+      // Acknowledge sender
+      ack({ success: true, messageId });
+    } catch (err) {
+      console.error("Error sending message:", err);
+      ack({ success: false, error: err.message });
+    }
+  });
+
+  // Mark message as delivered
+  socket.on("message-delivered", async ({ messageId, recipientId }) => {
+    await pool.query('UPDATE messages SET status = $1 WHERE id = $2', ['delivered', messageId]);
+    // Notify sender (you'll need the sender's socket id)
+    // We can query the message to get senderId, then emit to that socket.
+  });
+
+  // Mark message as read
+  socket.on("message-read", async ({ messageId, readerId }) => {
+    await pool.query('UPDATE messages SET status = $1 WHERE id = $2', ['read', messageId]);
+    // Notify sender
+  });
+
+  // Typing indicator
+  socket.on("typing", ({ chatId, userId, isTyping }) => {
+    socket.to(`chat:${chatId}`).emit("user-typing", { userId, isTyping });
+  });
+
+  // On disconnect
+  socket.on("disconnect", () => {
+    if (socket.userId) {
+      onlineUsers.delete(socket.userId);
+    }
+  });
+});
+
+// ======REST endpoint to fetch chat history====
+
+app.get('/api/chats/:matchId/messages', authenticateToken, async (req, res) => {
+  try {
+    const { matchId } = req.params;
+    const messages = await pool.query(
+      `SELECT m.*, u.name as sender_name
+       FROM messages m
+       JOIN chats c ON m.chat_id = c.id
+       JOIN users u ON m.sender_id = u.id
+       WHERE c.match_id = $1
+       ORDER BY m.created_at ASC`,
+      [matchId]
+    );
+    res.json(messages.rows);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+
+//====endpoint to fetch a user’s public key (for encryption)===
+app.get('/api/users/:id/public-key', authenticateToken, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const result = await pool.query('SELECT public_key FROM users WHERE id = $1', [id]);
+    if (result.rows.length === 0) return res.status(404).json({ error: 'User not found' });
+    res.json({ publicKey: result.rows[0].public_key });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
   }
 });
 
