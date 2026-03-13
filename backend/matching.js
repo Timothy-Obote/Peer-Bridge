@@ -87,11 +87,13 @@ async function autoMatch() {
 
 /**
  * Generate suggestions for tutors to take on new courses for unmatched tutees.
- * A suggestion is created for each course a tutee needs that the tutor does NOT already offer.
+ * A suggestion is created for each course a tutee needs that the tutor does NOT already offer,
+ * provided the tutor and tutee are not already matched.
  */
 async function generateSuggestions() {
     const client = await pool.connect();
     try {
+        // Find tutees with capacity (<2 tutors) and at least one needed course
         const tutees = await client.query(`
             SELECT u.id, u.department_id
             FROM users u
@@ -106,6 +108,7 @@ async function generateSuggestions() {
                 [tutee.id]
             );
 
+            // Find tutors in same department with capacity (<2 tutees)
             const tutors = await client.query(`
                 SELECT t.id
                 FROM users t
@@ -115,6 +118,13 @@ async function generateSuggestions() {
             `, [tutee.department_id]);
 
             for (const tutor of tutors.rows) {
+                // Skip if already matched with this tutee (any match)
+                const existingMatch = await client.query(
+                    `SELECT id FROM matches WHERE tutor_id = $1 AND tutee_id = $2`,
+                    [tutor.id, tutee.id]
+                );
+                if (existingMatch.rows.length > 0) continue;
+
                 // Get courses the tutor already offers
                 const tutorCourses = await client.query(
                     `SELECT course_id FROM tutor_courses WHERE tutor_id = $1`,
@@ -123,6 +133,7 @@ async function generateSuggestions() {
                 const tutorCourseIds = tutorCourses.rows.map(c => c.course_id);
 
                 for (const tc of tuteeCourses.rows) {
+                    // Suggest only courses the tutor does NOT already offer
                     if (!tutorCourseIds.includes(tc.course_id)) {
                         // Check if suggestion already pending
                         const exists = await client.query(`
@@ -184,7 +195,7 @@ async function acceptSuggestion(suggestionId) {
             throw new Error('Tutee already has 2 tutors');
         }
 
-        // Drop tutor's current courses
+        // Drop tutor's current courses (as per requirement: he has to drop existing units)
         await client.query(
             `DELETE FROM tutor_courses WHERE tutor_id = $1`,
             [tutor_id]

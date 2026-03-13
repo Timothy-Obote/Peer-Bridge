@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 
 interface MatchCourse {
@@ -30,49 +30,51 @@ const TutorMatches = () => {
   const [suggestions, setSuggestions] = useState<Suggestion[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [actionInProgress, setActionInProgress] = useState<number | null>(null); // track which suggestion is being processed
 
-  // Get current user from localStorage
   const userStr = localStorage.getItem("user");
   const token = localStorage.getItem("token");
 
-  useEffect(() => {
+  // Fetch data function (can be reused)
+  const fetchData = useCallback(async () => {
     if (!userStr || !token) {
       navigate("/");
       return;
     }
 
-    const fetchData = async () => {
-      try {
-        const user = JSON.parse(userStr);
+    try {
+      const user = JSON.parse(userStr);
 
-        // Fetch confirmed matches
-        const matchesRes = await fetch(
-          `${import.meta.env.VITE_API_URL}/api/matches/${user.id}`,
-          { headers: { Authorization: `Bearer ${token}` } }
-        );
-        if (!matchesRes.ok) throw new Error("Failed to fetch matches");
-        const matchesData = await matchesRes.json();
-        setMatches(matchesData);
+      const [matchesRes, suggestionsRes] = await Promise.all([
+        fetch(`${import.meta.env.VITE_API_URL}/api/matches/${user.id}`, {
+          headers: { Authorization: `Bearer ${token}` },
+        }),
+        fetch(`${import.meta.env.VITE_API_URL}/api/suggestions/${user.id}`, {
+          headers: { Authorization: `Bearer ${token}` },
+        }),
+      ]);
 
-        // Fetch pending suggestions
-        const suggestionsRes = await fetch(
-          `${import.meta.env.VITE_API_URL}/api/suggestions/${user.id}`,
-          { headers: { Authorization: `Bearer ${token}` } }
-        );
-        if (!suggestionsRes.ok) throw new Error("Failed to fetch suggestions");
-        const suggestionsData = await suggestionsRes.json();
-        setSuggestions(suggestionsData);
-      } catch (err: any) {
-        setError(err.message);
-      } finally {
-        setLoading(false);
-      }
-    };
+      if (!matchesRes.ok) throw new Error("Failed to fetch matches");
+      if (!suggestionsRes.ok) throw new Error("Failed to fetch suggestions");
 
-    fetchData();
+      const matchesData = await matchesRes.json();
+      const suggestionsData = await suggestionsRes.json();
+
+      setMatches(matchesData);
+      setSuggestions(suggestionsData);
+    } catch (err: any) {
+      setError(err.message);
+    } finally {
+      setLoading(false);
+    }
   }, [navigate, userStr, token]);
 
+  useEffect(() => {
+    fetchData();
+  }, [fetchData]);
+
   const handleAccept = async (suggestionId: number) => {
+    setActionInProgress(suggestionId);
     try {
       const res = await fetch(
         `${import.meta.env.VITE_API_URL}/api/suggestions/${suggestionId}/accept`,
@@ -82,14 +84,16 @@ const TutorMatches = () => {
         }
       );
       if (!res.ok) throw new Error("Accept failed");
-      // Refresh data after acceptance
-      window.location.reload(); // simple way; you could refetch without reload
+      await fetchData(); // refresh data after success
     } catch (err: any) {
       alert("Error accepting suggestion: " + err.message);
+    } finally {
+      setActionInProgress(null);
     }
   };
 
   const handleReject = async (suggestionId: number) => {
+    setActionInProgress(suggestionId);
     try {
       const res = await fetch(
         `${import.meta.env.VITE_API_URL}/api/suggestions/${suggestionId}/reject`,
@@ -99,9 +103,11 @@ const TutorMatches = () => {
         }
       );
       if (!res.ok) throw new Error("Reject failed");
-      window.location.reload();
+      await fetchData();
     } catch (err: any) {
       alert("Error rejecting suggestion: " + err.message);
+    } finally {
+      setActionInProgress(null);
     }
   };
 
@@ -168,14 +174,16 @@ const TutorMatches = () => {
                   <button
                     className="accept-btn"
                     onClick={() => handleAccept(s.id)}
+                    disabled={actionInProgress === s.id}
                   >
-                    Accept
+                    {actionInProgress === s.id ? "Processing..." : "Accept"}
                   </button>
                   <button
                     className="reject-btn"
                     onClick={() => handleReject(s.id)}
+                    disabled={actionInProgress === s.id}
                   >
-                    Decline
+                    {actionInProgress === s.id ? "Processing..." : "Decline"}
                   </button>
                 </div>
               </div>
