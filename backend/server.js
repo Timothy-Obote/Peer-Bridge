@@ -51,7 +51,7 @@ app.post('/api/upload-signature', authenticateToken, (req, res) => {
   });
 });
 
-// public key E2EE
+// Public key E2EE
 app.get('/api/users/:id/public-key', authenticateToken, async (req, res) => {
   const { id } = req.params;
   if (!id || isNaN(parseInt(id))) {
@@ -83,6 +83,7 @@ app.use(cors({
     ],
     credentials: true
 }));
+app.options('*', cors()); // Preflight for all routes
 
 app.use(express.json());
 
@@ -130,14 +131,86 @@ const io = new Server(server, {
     } 
 });
 
-// Active socket tracking
+// Active socket tracking (for registerUser event)
 const activeSockets = new Map();
+
+// ============ SINGLE SOCKET.IO CONNECTION HANDLER ============
 io.on("connection", (socket) => {
   console.log("Socket connected:", socket.id);
+
+  // Existing registerUser event
   socket.on("registerUser", (email) => {
     if (email) activeSockets.set(email, socket.id);
   });
+
+  // User comes online
+  socket.on("user-online", (userId) => {
+    onlineUsers.set(userId, socket.id);
+    socket.userId = userId;
+  });
+
+  // Join a specific chat room
+  socket.on("join-chat", ({ chatId, userId }) => {
+    socket.join(`chat:${chatId}`);
+    console.log(`User ${userId} joined chat room ${chatId}`);
+  });
+
+  // Send a message
+  socket.on("send-message", async (data, ack) => {
+    try {
+      const { chatId, senderId, recipientId, encryptedMessage, mediaUrl, mediaType } = data;
+
+      // Save to database
+      const result = await pool.query(
+        `INSERT INTO messages (chat_id, sender_id, recipient_id, encrypted_message, media_url, media_type, status)
+         VALUES ($1, $2, $3, $4, $5, $6, 'sent') RETURNING id, created_at`,
+        [chatId, senderId, recipientId, encryptedMessage, mediaUrl, mediaType]
+      );
+      const messageId = result.rows[0].id;
+
+      // Emit to recipient if online
+      const recipientSocketId = onlineUsers.get(recipientId);
+      if (recipientSocketId) {
+        io.to(recipientSocketId).emit("new-message", {
+          messageId,
+          chatId,
+          senderId,
+          encryptedMessage,
+          mediaUrl,
+          mediaType,
+          status: 'sent',
+          createdAt: result.rows[0].created_at,
+        });
+      }
+
+      // Acknowledge sender
+      ack({ success: true, messageId });
+    } catch (err) {
+      console.error("Error sending message:", err);
+      ack({ success: false, error: err.message });
+    }
+  });
+
+  // Mark message as delivered
+  socket.on("message-delivered", async ({ messageId, recipientId }) => {
+    await pool.query('UPDATE messages SET status = $1 WHERE id = $2', ['delivered', messageId]);
+    // Optionally notify sender (requires fetching senderId)
+  });
+
+  // Mark message as read
+  socket.on("message-read", async ({ messageId, readerId }) => {
+    await pool.query('UPDATE messages SET status = $1 WHERE id = $2', ['read', messageId]);
+    // Optionally notify sender
+  });
+
+  // Typing indicator
+  socket.on("typing", ({ chatId, userId, isTyping }) => {
+    socket.to(`chat:${chatId}`).emit("user-typing", { userId, isTyping });
+  });
+
+  // On disconnect
   socket.on("disconnect", () => {
+    if (socket.userId) onlineUsers.delete(socket.userId);
     for (const [email, id] of activeSockets.entries()) {
       if (id === socket.id) activeSockets.delete(email);
     }
@@ -346,7 +419,7 @@ app.post("/signup", async (req, res) => {
     }
 });
 
-// ============ TUTEE REGISTRATION (updated with new fields) ============
+// ============ TUTEE REGISTRATION ============
 app.post('/api/tutees', async (req, res) => {
   const { 
     email, password, name, id_number, 
@@ -370,7 +443,6 @@ app.post('/api/tutees', async (req, res) => {
 
     const hashedPassword = await bcrypt.hash(password, 10);
 
-    // Get or create department
     let deptId = null;
     if (department) {
       const deptRes = await client.query('SELECT id FROM departments WHERE name = $1', [department]);
@@ -385,7 +457,6 @@ app.post('/api/tutees', async (req, res) => {
       }
     }
 
-    // Insert user with new fields
     const userRes = await client.query(
       `INSERT INTO users (
         email, password, name, id_number, role, 
@@ -400,7 +471,6 @@ app.post('/api/tutees', async (req, res) => {
     );
     const userId = userRes.rows[0].id;
 
-    // Insert selected courses
     if (selectedCourses && Array.isArray(selectedCourses) && selectedCourses.length > 0) {
       console.log('Attempting to insert courses:', selectedCourses);
       for (const courseId of selectedCourses) {
@@ -454,7 +524,7 @@ app.post('/api/tutees', async (req, res) => {
   }
 });
 
-// ============ TUTOR REGISTRATION (updated with new fields) ============
+// ============ TUTOR REGISTRATION ============
 app.post('/api/tutors', async (req, res) => {
   const { 
     email, password, name, id_number, 
@@ -478,7 +548,6 @@ app.post('/api/tutors', async (req, res) => {
 
     const hashedPassword = await bcrypt.hash(password, 10);
 
-    // Get or create department
     let deptId = null;
     if (department) {
       const deptRes = await client.query('SELECT id FROM departments WHERE name = $1', [department]);
@@ -493,7 +562,6 @@ app.post('/api/tutors', async (req, res) => {
       }
     }
 
-    // Insert user with new fields
     const userRes = await client.query(
       `INSERT INTO users (
         email, password, name, id_number, role, 
@@ -508,7 +576,6 @@ app.post('/api/tutors', async (req, res) => {
     );
     const userId = userRes.rows[0].id;
 
-    // Insert selected courses
     if (selectedCourses && Array.isArray(selectedCourses) && selectedCourses.length > 0) {
       console.log('Attempting to insert courses:', selectedCourses);
       for (const courseId of selectedCourses) {
@@ -612,6 +679,29 @@ app.post('/api/suggestions/:id/reject', async (req, res) => {
         );
         res.json({ success: true });
     } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// Get a single match by its ID (for chat)
+app.get('/api/match/:matchId', authenticateToken, async (req, res) => {
+    const { matchId } = req.params;
+    try {
+        const result = await pool.query(`
+            SELECT m.id, m.tutor_id, m.tutee_id, m.created_at,
+                   json_agg(json_build_object('code', c.code, 'name', c.name)) as courses
+            FROM matches m
+            JOIN match_courses mc ON m.id = mc.match_id
+            JOIN courses c ON mc.course_id = c.id
+            WHERE m.id = $1
+            GROUP BY m.id
+        `, [matchId]);
+        if (result.rows.length === 0) {
+            return res.status(404).json({ error: 'Match not found' });
+        }
+        res.json(result.rows[0]);
+    } catch (err) {
+        console.error(err);
         res.status(500).json({ error: err.message });
     }
 });
@@ -836,85 +926,7 @@ app.put('/api/tutor/:id/courses', authenticateToken, async (req, res) => {
   }
 });
 
-// ==== Chat eventhandlers ===
-io.on("connection", (socket) => {
-
-  // User comes online
-  socket.on("user-online", (userId) => {
-    onlineUsers.set(userId, socket.id);
-    socket.userId = userId;
-  });
-
-  // Join a specific chat room
-  socket.on("join-chat", ({ chatId, userId }) => {
-    socket.join(`chat:${chatId}`);
-    console.log(`User ${userId} joined chat room ${chatId}`);
-  });
-
-  // Send a message
-  socket.on("send-message", async (data, ack) => {
-    try {
-      const { chatId, senderId, recipientId, encryptedMessage, mediaUrl, mediaType } = data;
-
-      // Save to database
-      const result = await pool.query(
-        `INSERT INTO messages (chat_id, sender_id, recipient_id, encrypted_message, media_url, media_type, status)
-         VALUES ($1, $2, $3, $4, $5, $6, 'sent') RETURNING id, created_at`,
-        [chatId, senderId, recipientId, encryptedMessage, mediaUrl, mediaType]
-      );
-      const messageId = result.rows[0].id;
-
-      // Emit to recipient if online
-      const recipientSocketId = onlineUsers.get(recipientId);
-      if (recipientSocketId) {
-        io.to(recipientSocketId).emit("new-message", {
-          messageId,
-          chatId,
-          senderId,
-          encryptedMessage,
-          mediaUrl,
-          mediaType,
-          status: 'sent',
-          createdAt: result.rows[0].created_at,
-        });
-      }
-
-      // Acknowledge sender
-      ack({ success: true, messageId });
-    } catch (err) {
-      console.error("Error sending message:", err);
-      ack({ success: false, error: err.message });
-    }
-  });
-
-  // Mark message as delivered
-  socket.on("message-delivered", async ({ messageId, recipientId }) => {
-    await pool.query('UPDATE messages SET status = $1 WHERE id = $2', ['delivered', messageId]);
-    // Notify sender (you'll need the sender's socket id)
-    // We can query the message to get senderId, then emit to that socket.
-  });
-
-  // Mark message as read
-  socket.on("message-read", async ({ messageId, readerId }) => {
-    await pool.query('UPDATE messages SET status = $1 WHERE id = $2', ['read', messageId]);
-    // Notify sender
-  });
-
-  // Typing indicator
-  socket.on("typing", ({ chatId, userId, isTyping }) => {
-    socket.to(`chat:${chatId}`).emit("user-typing", { userId, isTyping });
-  });
-
-  // On disconnect
-  socket.on("disconnect", () => {
-    if (socket.userId) {
-      onlineUsers.delete(socket.userId);
-    }
-  });
-});
-
-// ======REST endpoint to fetch chat history====
-
+// ===== REST endpoint to fetch chat history =====
 app.get('/api/chats/:matchId/messages', authenticateToken, async (req, res) => {
   try {
     const { matchId } = req.params;
@@ -928,19 +940,6 @@ app.get('/api/chats/:matchId/messages', authenticateToken, async (req, res) => {
       [matchId]
     );
     res.json(messages.rows);
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
-});
-
-
-//====endpoint to fetch a user’s public key (for encryption)===
-app.get('/api/users/:id/public-key', authenticateToken, async (req, res) => {
-  try {
-    const { id } = req.params;
-    const result = await pool.query('SELECT public_key FROM users WHERE id = $1', [id]);
-    if (result.rows.length === 0) return res.status(404).json({ error: 'User not found' });
-    res.json({ publicKey: result.rows[0].public_key });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -967,4 +966,4 @@ server.listen(PORT, '0.0.0.0', () => {
     console.log('='.repeat(60));
     console.log('Admin Login:  admin@usiu.ac.ke / PACS1234');
     console.log('='.repeat(60));
-});
+});correct 

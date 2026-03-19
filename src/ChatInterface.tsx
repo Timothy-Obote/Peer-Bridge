@@ -32,7 +32,7 @@ const ChatInterface = () => {
     const fetchData = async () => {
       try {
         // 1. Fetch match details to know the other participant
-        const matchRes = await fetch(`${import.meta.env.VITE_API_URL}/api/matches/${matchId}`, {
+        const matchRes = await fetch(`${import.meta.env.VITE_API_URL}/api/match/${matchId}`, {
           headers: { Authorization: `Bearer ${token}` },
         });
         if (!matchRes.ok) throw new Error('Failed to fetch match');
