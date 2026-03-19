@@ -51,7 +51,7 @@ const ChatInterface = () => {
         const history = await historyRes.json();
         setMessages(history);
 
-        // 3. Fetch other user's public key (now using the known otherId)
+        // 3. Fetch other user's public key using otherId directly
         const keyRes = await fetch(`${import.meta.env.VITE_API_URL}/api/users/${otherId}/public-key`, {
           headers: { Authorization: `Bearer ${token}` },
         });
@@ -61,7 +61,7 @@ const ChatInterface = () => {
 
         // 4. Connect Socket.IO
         const newSocket = io(import.meta.env.VITE_API_URL, {
-          auth: { token }, // send token for authentication (optional)
+          auth: { token },
         });
         socketRef.current = newSocket;
 
@@ -70,7 +70,6 @@ const ChatInterface = () => {
 
         newSocket.on('new-message', (msg) => {
           setMessages(prev => [...prev, msg]);
-          // Emit delivery acknowledgment for this message
           if (msg.sender_id !== user.id) {
             socketRef.current?.emit('message-delivered', {
               messageId: msg.id,
@@ -227,7 +226,7 @@ const ChatInterface = () => {
           onChange={handleTyping}
           onKeyPress={(e) => e.key === 'Enter' && sendMessage()}
           placeholder="Type a message..."
-          disabled={!otherUser?.publicKey} // disable until public key is loaded
+          disabled={!otherUser?.publicKey}
         />
         <button onClick={sendMessage} disabled={!otherUser?.publicKey}>Send</button>
         <div {...getRootProps()} className="upload-area">
