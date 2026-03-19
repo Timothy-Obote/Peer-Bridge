@@ -83,7 +83,7 @@ app.use(cors({
     ],
     credentials: true
 }));
-app.options('*', cors()); // Preflight for all routes
+
 
 app.use(express.json());
 
