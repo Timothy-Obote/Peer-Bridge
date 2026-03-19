@@ -966,4 +966,4 @@ server.listen(PORT, '0.0.0.0', () => {
     console.log('='.repeat(60));
     console.log('Admin Login:  admin@usiu.ac.ke / PACS1234');
     console.log('='.repeat(60));
-});correct 
+}); 
