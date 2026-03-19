@@ -38,6 +38,9 @@ const ChatInterface = () => {
         if (!matchRes.ok) throw new Error('Failed to fetch match');
         const match = await matchRes.json();
         const otherId = match.tutor_id === user.id ? match.tutee_id : match.tutor_id;
+        if (!otherId) {
+          throw new Error('Could not determine other user ID from match');
+        }
         setOtherUser({ id: otherId, name: '' });
 
         // 2. Fetch chat history
@@ -48,7 +51,7 @@ const ChatInterface = () => {
         const history = await historyRes.json();
         setMessages(history);
 
-        // 3. Fetch other user's public key
+        // 3. Fetch other user's public key (now using the known otherId)
         const keyRes = await fetch(`${import.meta.env.VITE_API_URL}/api/users/${otherId}/public-key`, {
           headers: { Authorization: `Bearer ${token}` },
         });
@@ -57,7 +60,9 @@ const ChatInterface = () => {
         setOtherUser(prev => prev ? { ...prev, publicKey: keyData.publicKey } : null);
 
         // 4. Connect Socket.IO
-        const newSocket = io(import.meta.env.VITE_API_URL);
+        const newSocket = io(import.meta.env.VITE_API_URL, {
+          auth: { token }, // send token for authentication (optional)
+        });
         socketRef.current = newSocket;
 
         newSocket.emit('user-online', user.id);
@@ -99,7 +104,7 @@ const ChatInterface = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
 
-  // 👇 Message read status observer
+  // Message read status observer
   useEffect(() => {
     if (!socketRef.current || !user.id) return;
 
@@ -117,7 +122,6 @@ const ChatInterface = () => {
       });
     }, { threshold: 0.5 });
 
-    // Observe all elements with data-message-id attribute
     document.querySelectorAll('[data-message-id]').forEach(el => observer.observe(el));
 
     return () => observer.disconnect();
@@ -223,10 +227,11 @@ const ChatInterface = () => {
           onChange={handleTyping}
           onKeyPress={(e) => e.key === 'Enter' && sendMessage()}
           placeholder="Type a message..."
+          disabled={!otherUser?.publicKey} // disable until public key is loaded
         />
-        <button onClick={sendMessage}>Send</button>
+        <button onClick={sendMessage} disabled={!otherUser?.publicKey}>Send</button>
         <div {...getRootProps()} className="upload-area">
-          <input {...getInputProps()} />
+          <input {...getInputProps()} disabled={!otherUser?.publicKey} />
           📎 Attach
         </div>
       </div>

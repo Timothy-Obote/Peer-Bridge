@@ -52,11 +52,17 @@ app.post('/api/upload-signature', authenticateToken, (req, res) => {
 });
 
 // public key E2EE
-app.put('/api/users/me/public-key', authenticateToken, async (req, res) => {
-  const { publicKey } = req.body;
+app.get('/api/users/:id/public-key', authenticateToken, async (req, res) => {
+  const { id } = req.params;
+  if (!id || isNaN(parseInt(id))) {
+    return res.status(400).json({ error: 'Invalid user ID' });
+  }
   try {
-    await pool.query('UPDATE users SET public_key = $1 WHERE id = $2', [publicKey, req.user.id]);
-    res.json({ success: true });
+    const result = await pool.query('SELECT public_key FROM users WHERE id = $1', [id]);
+    if (result.rows.length === 0 || !result.rows[0].public_key) {
+      return res.status(404).json({ error: 'Public key not found' });
+    }
+    res.json({ publicKey: result.rows[0].public_key });
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: err.message });
