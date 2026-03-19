@@ -30,6 +30,31 @@ const authenticateToken = (req, res, next) => {
   });
 };
 
+// ============ MIDDLEWARE ============
+app.use(express.json());
+
+// CORS – placed before any routes
+app.use(cors({
+    origin: [
+        'http://localhost:5173',
+        'http://127.0.0.1:5173',
+        'http://localhost:5174',
+        'http://localhost:3000',
+        'http://localhost:3001',
+        'http://localhost:5001',
+        'https://pacspeertutoring.vercel.app',
+        'https://peerbridge-n9sjvyrba-gors-projects-57d8ecd6.vercel.app'
+    ],
+    credentials: true
+}));
+
+// Request logging
+app.use((req, res, next) => {
+    console.log(`[${new Date().toISOString()}] ${req.method} ${req.url}`);
+    next();
+});
+
+// ============ CLOUDINARY CONFIGURATION ============
 cloudinary.config({
   cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
   api_key: process.env.CLOUDINARY_API_KEY,
@@ -67,30 +92,6 @@ app.get('/api/users/:id/public-key', authenticateToken, async (req, res) => {
     console.error(err);
     res.status(500).json({ error: err.message });
   }
-});
-
-// ============ MIDDLEWARE ============
-app.use(cors({
-    origin: [
-        'http://localhost:5173',
-        'http://127.0.0.1:5173',
-        'http://localhost:5174',
-        'http://localhost:3000',
-        'http://localhost:3001',
-        'http://localhost:5001',
-        'https://pacspeertutoring.vercel.app',
-        'https://peerbridge-n9sjvyrba-gors-projects-57d8ecd6.vercel.app'
-    ],
-    credentials: true
-}));
-
-
-app.use(express.json());
-
-// Request logging
-app.use((req, res, next) => {
-    console.log(`[${new Date().toISOString()}] ${req.method} ${req.url}`);
-    next();
 });
 
 // ============ ROOT ROUTE ============
@@ -966,4 +967,4 @@ server.listen(PORT, '0.0.0.0', () => {
     console.log('='.repeat(60));
     console.log('Admin Login:  admin@usiu.ac.ke / PACS1234');
     console.log('='.repeat(60));
-}); 
+});
