@@ -1,0 +1,13 @@
+node_modules
+dist
+.vscode
+.git
+.gitignore
+.DS_Store
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+*.local
+*.log
+backend/node_modules
+backend/dist
