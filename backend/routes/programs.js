@@ -45,12 +45,11 @@ router.get('/programs/:programId/courses', async (req, res) => {
         const result = await pool.query(`
             SELECT 
                 c.id,
-                c.course_code AS unit_code,
-                c.course_name AS unit_name
-            FROM courses_1 c
-            INNER JOIN program_courses pc ON c.id = pc.course_id
-            WHERE pc.program_id = $1
-            ORDER BY c.course_name
+                c.code AS unit_code,
+                c.name AS unit_name
+            FROM courses c
+            WHERE c.program_id = $1
+            ORDER BY c.name
         `, [programId]);
         
         console.log(`Returning ${result.rows.length} courses`);

@@ -18,8 +18,6 @@ import AdminOverview from "./AdminOverview";
 import AdminUsers from "./AdminUsers";
 import AdminReports from "./AdminReports";
 import AdminSettings from "./AdminSettings";
-
-
 import { useState, useEffect } from "react";
 import {
   BrowserRouter as Router,
@@ -67,7 +65,7 @@ function Home() {
         } else {
           navigate('/dashboard', { replace: true });
         }
-      } catch (e) {
+      } catch {
         localStorage.removeItem('user');
       }
     }
@@ -200,7 +198,7 @@ function ProtectedRoute({ children, allowedRoles }: ProtectedRouteProps) {
     }
     
     return <>{children}</>;
-  } catch (e) {
+  } catch {
     localStorage.removeItem('user');
     return <Navigate to="/signin" replace />;
   }

@@ -42,7 +42,7 @@ const MatchPage: React.FC<{ email: string | null; userType: "tutor" | "tutee" }>
 
         setMatches(matchData);
         setSuggestions(suggestionData);
-      } catch (err) {
+      } catch {
         setError("Failed to fetch data.");
       } finally {
         setLoading(false);

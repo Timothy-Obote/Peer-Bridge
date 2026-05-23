@@ -30,17 +30,7 @@ const TuteeSessions = () => {
           headers: { Authorization: `Bearer ${token}` },
         });
         const data = await res.json();
-        // Enrich with tutor names
-        const withNames = await Promise.all(
-          data.map(async (match: Match) => {
-            const tutorRes = await fetch(`${import.meta.env.VITE_API_URL}/api/users/${match.tutor_id}`, {
-              headers: { Authorization: `Bearer ${token}` },
-            });
-            const tutor = await tutorRes.json();
-            return { ...match, tutor_name: tutor.name };
-          })
-        );
-        setMatches(withNames);
+        setMatches(data);
       } catch (error) {
         console.error("Error fetching matches:", error);
       } finally {
@@ -78,3 +68,4 @@ const TuteeSessions = () => {
 };
 
 export default TuteeSessions;
+

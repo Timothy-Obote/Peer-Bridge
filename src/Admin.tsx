@@ -1,8 +1,27 @@
 import { useNavigate, NavLink, Outlet } from "react-router-dom";
+import { useEffect } from "react";
 import "./admin.css";
 
 const AdminDashboard = () => {
   const navigate = useNavigate();
+
+  useEffect(() => {
+    const userStr = localStorage.getItem("user");
+    if (!userStr) {
+      navigate("/");
+      return;
+    }
+    try {
+      const user = JSON.parse(userStr);
+      if (user.role !== "admin") {
+        if (user.role === "tutor") navigate("/tutor-dashboard");
+        else if (user.role === "tutee") navigate("/tutee-dashboard");
+        else navigate("/");
+      }
+    } catch {
+      navigate("/");
+    }
+  }, [navigate]);
 
   const handleLogout = () => {
     localStorage.removeItem("user");

@@ -1,5 +1,22 @@
 const express = require("express");
 const cors = require("cors");
+const path = require('node:path');
+const fs = require('node:fs');
+const dotenv = require('dotenv');
+
+// Ensure backend .env is parsed and applied to process.env
+try {
+  const envPath = path.join(__dirname, '.env');
+  const parsed = dotenv.parse(fs.readFileSync(envPath));
+  for (const k of Object.keys(parsed)) {
+    if (!process.env[k]) process.env[k] = parsed[k];
+  }
+  console.log('[env] Loaded backend .env:', envPath);
+} catch (err) {
+  console.warn('[env] Could not read backend .env:', err.message);
+}
+
+require('dotenv').config({ path: path.join(__dirname, '.env') });
 const pool = require('./db');
 const bcrypt = require("bcrypt");
 const jwt = require("jsonwebtoken");
@@ -8,7 +25,7 @@ const { Server } = require("socket.io");
 const cron = require("node-cron");
 const onlineUsers = new Map();
 const cloudinary = require('cloudinary').v2;
-require("dotenv").config();
+// dotenv already loaded above from backend/.env
 
 // Import route files
 const programRoutes = require('./routes/programs');
@@ -28,6 +45,81 @@ const authenticateToken = (req, res, next) => {
     req.user = user;
     next();
   });
+};
+
+const userCanAccessMatch = (user, match) => {
+  if (!user || !match) return false;
+  const userId = Number(user.id);
+  return user.role === 'admin' || userId === Number(match.tutor_id) || userId === Number(match.tutee_id);
+};
+
+const getMatchContextByMatchId = async (matchId) => {
+  const { rows } = await pool.query(
+    `SELECT
+       m.id AS match_id,
+       m.tutor_id,
+       m.tutee_id,
+       chat.id AS chat_id
+     FROM matches m
+     LEFT JOIN LATERAL (
+       SELECT id
+       FROM chats
+       WHERE match_id = m.id
+       ORDER BY id
+       LIMIT 1
+     ) chat ON TRUE
+     WHERE m.id = $1`,
+    [matchId]
+  );
+
+  return rows[0] || null;
+};
+
+const getChatContextByChatId = async (chatId) => {
+  const { rows } = await pool.query(
+    `SELECT c.id AS chat_id, c.match_id, m.tutor_id, m.tutee_id
+     FROM chats c
+     JOIN matches m ON c.match_id = m.id
+     WHERE c.id = $1`,
+    [chatId]
+  );
+
+  return rows[0] || null;
+};
+
+const ensureChatForMatch = async (queryable, matchId) => {
+  const existingChat = await queryable.query(
+    `SELECT id
+     FROM chats
+     WHERE match_id = $1
+     ORDER BY id
+     LIMIT 1`,
+    [matchId]
+  );
+
+  if (existingChat.rows.length > 0) {
+    return existingChat.rows[0].id;
+  }
+
+  const insertedChat = await queryable.query(
+    `INSERT INTO chats (match_id) VALUES ($1) RETURNING id`,
+    [matchId]
+  );
+
+  return insertedChat.rows[0].id;
+};
+
+const areUsersMatched = async (userId, otherUserId) => {
+  const { rows } = await pool.query(
+    `SELECT 1
+     FROM matches
+     WHERE (tutor_id = $1 AND tutee_id = $2)
+        OR (tutor_id = $2 AND tutee_id = $1)
+     LIMIT 1`,
+    [userId, otherUserId]
+  );
+
+  return rows.length > 0;
 };
 
 // ============ MIDDLEWARE ============
@@ -78,16 +170,43 @@ app.post('/api/upload-signature', authenticateToken, (req, res) => {
 
 // Public key E2EE
 app.get('/api/users/:id/public-key', authenticateToken, async (req, res) => {
-  const { id } = req.params;
-  if (!id || isNaN(parseInt(id))) {
+  const targetUserId = parseInt(req.params.id, 10);
+  if (Number.isNaN(targetUserId)) {
     return res.status(400).json({ error: 'Invalid user ID' });
   }
   try {
-    const result = await pool.query('SELECT public_key FROM users WHERE id = $1', [id]);
-    if (result.rows.length === 0 || !result.rows[0].public_key) {
-      return res.status(404).json({ error: 'Public key not found' });
+    const requesterId = Number(req.user.id);
+    if (requesterId !== targetUserId && req.user.role !== 'admin') {
+      const matched = await areUsersMatched(requesterId, targetUserId);
+      if (!matched) {
+        return res.status(403).json({ error: 'Forbidden' });
+      }
     }
-    res.json({ publicKey: result.rows[0].public_key });
+
+    const result = await pool.query('SELECT public_key FROM users WHERE id = $1', [targetUserId]);
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+    res.json({ publicKey: result.rows[0].public_key || null });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.put('/api/users/me/public-key', authenticateToken, async (req, res) => {
+  const { publicKey } = req.body;
+
+  if (!publicKey || typeof publicKey !== 'string' || !publicKey.trim()) {
+    return res.status(400).json({ error: 'Public key is required' });
+  }
+
+  try {
+    await pool.query(
+      `UPDATE users SET public_key = $1 WHERE id = $2`,
+      [publicKey.trim(), req.user.id]
+    );
+    res.json({ success: true });
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: err.message });
@@ -135,78 +254,176 @@ const io = new Server(server, {
 // Active socket tracking (for registerUser event)
 const activeSockets = new Map();
 
+io.use((socket, next) => {
+  const token = socket.handshake.auth?.token;
+  if (!token) {
+    return next(new Error('Authentication required'));
+  }
+
+  jwt.verify(token, process.env.JWT_SECRET, (err, user) => {
+    if (err) {
+      return next(new Error('Invalid token'));
+    }
+
+    socket.user = user;
+    socket.userId = Number(user.id);
+    socket.joinedChatIds = new Set();
+    return next();
+  });
+});
+
 // ============ SINGLE SOCKET.IO CONNECTION HANDLER ============
 io.on("connection", (socket) => {
   console.log("Socket connected:", socket.id);
+  onlineUsers.set(socket.userId, socket.id);
 
   // Existing registerUser event
   socket.on("registerUser", (email) => {
-    if (email) activeSockets.set(email, socket.id);
+    activeSockets.set(email || socket.user?.email, socket.id);
   });
 
   // User comes online
-  socket.on("user-online", (userId) => {
-    onlineUsers.set(userId, socket.id);
-    socket.userId = userId;
+  socket.on("user-online", () => {
+    onlineUsers.set(socket.userId, socket.id);
   });
 
   // Join a specific chat room
-  socket.on("join-chat", ({ chatId, userId }) => {
-    socket.join(`chat:${chatId}`);
-    console.log(`User ${userId} joined chat room ${chatId}`);
+  socket.on("join-chat", async ({ chatId }, ack) => {
+    try {
+      const normalizedChatId = Number(chatId);
+      if (!Number.isInteger(normalizedChatId)) {
+        throw new Error('Invalid chat ID');
+      }
+
+      const chat = await getChatContextByChatId(normalizedChatId);
+      if (!chat || !userCanAccessMatch(socket.user, chat)) {
+        throw new Error('Forbidden');
+      }
+
+      socket.join(`chat:${normalizedChatId}`);
+      socket.joinedChatIds.add(normalizedChatId);
+      console.log(`User ${socket.userId} joined chat room ${normalizedChatId}`);
+
+      if (typeof ack === 'function') {
+        ack({ success: true, chatId: normalizedChatId });
+      }
+    } catch (err) {
+      if (typeof ack === 'function') {
+        ack({ success: false, error: err.message });
+      }
+    }
   });
 
   // Send a message
   socket.on("send-message", async (data, ack) => {
     try {
-      const { chatId, senderId, recipientId, encryptedMessage, mediaUrl, mediaType } = data;
-
-      // Save to database
-      const result = await pool.query(
-        `INSERT INTO messages (chat_id, sender_id, recipient_id, encrypted_message, media_url, media_type, status)
-         VALUES ($1, $2, $3, $4, $5, $6, 'sent') RETURNING id, created_at`,
-        [chatId, senderId, recipientId, encryptedMessage, mediaUrl, mediaType]
-      );
-      const messageId = result.rows[0].id;
-
-      // Emit to recipient if online
-      const recipientSocketId = onlineUsers.get(recipientId);
-      if (recipientSocketId) {
-        io.to(recipientSocketId).emit("new-message", {
-          messageId,
-          chatId,
-          senderId,
-          encryptedMessage,
-          mediaUrl,
-          mediaType,
-          status: 'sent',
-          createdAt: result.rows[0].created_at,
-        });
+      const chatId = Number(data.chatId);
+      if (!Number.isInteger(chatId)) {
+        throw new Error('Invalid chat ID');
       }
 
-      // Acknowledge sender
-      ack({ success: true, messageId });
+      const chat = await getChatContextByChatId(chatId);
+      if (!chat || !userCanAccessMatch(socket.user, chat)) {
+        throw new Error('Forbidden');
+      }
+
+      const encryptedMessage = typeof data.encryptedMessage === 'string'
+        ? data.encryptedMessage
+        : JSON.stringify(data.encryptedMessage ?? '');
+      const mediaUrl = data.mediaUrl || null;
+      const mediaType = data.mediaType || null;
+      const senderId = socket.userId;
+      const recipientId = senderId === Number(chat.tutor_id) ? Number(chat.tutee_id) : Number(chat.tutor_id);
+
+      if (!encryptedMessage && !mediaUrl) {
+        throw new Error('Message content is required');
+      }
+
+      const result = await pool.query(
+        `INSERT INTO messages (chat_id, sender_id, recipient_id, encrypted_message, media_url, media_type, status)
+         VALUES ($1, $2, $3, $4, $5, $6, 'sent')
+         RETURNING id, chat_id, sender_id, recipient_id, encrypted_message, media_url, media_type, status, created_at`,
+        [chatId, senderId, recipientId, encryptedMessage, mediaUrl, mediaType]
+      );
+      const savedMessage = result.rows[0];
+
+      io.to(`chat:${chatId}`).emit("new-message", savedMessage);
+
+      if (typeof ack === 'function') {
+        ack({ success: true, message: savedMessage });
+      }
     } catch (err) {
       console.error("Error sending message:", err);
-      ack({ success: false, error: err.message });
+      if (typeof ack === 'function') {
+        ack({ success: false, error: err.message });
+      }
     }
   });
 
   // Mark message as delivered
-  socket.on("message-delivered", async ({ messageId, recipientId }) => {
-    await pool.query('UPDATE messages SET status = $1 WHERE id = $2', ['delivered', messageId]);
-    // Optionally notify sender (requires fetching senderId)
+  socket.on("message-delivered", async ({ messageId }, ack) => {
+    try {
+      const { rows } = await pool.query(
+        `UPDATE messages
+         SET status = 'delivered'
+         WHERE id = $1 AND recipient_id = $2 AND status = 'sent'
+         RETURNING id, chat_id, status`,
+        [messageId, socket.userId]
+      );
+
+      if (rows.length > 0) {
+        io.to(`chat:${rows[0].chat_id}`).emit('message-status-updated', {
+          messageId: rows[0].id,
+          status: rows[0].status,
+        });
+      }
+
+      if (typeof ack === 'function') {
+        ack({ success: true });
+      }
+    } catch (err) {
+      if (typeof ack === 'function') {
+        ack({ success: false, error: err.message });
+      }
+    }
   });
 
   // Mark message as read
-  socket.on("message-read", async ({ messageId, readerId }) => {
-    await pool.query('UPDATE messages SET status = $1 WHERE id = $2', ['read', messageId]);
-    // Optionally notify sender
+  socket.on("message-read", async ({ messageId }, ack) => {
+    try {
+      const { rows } = await pool.query(
+        `UPDATE messages
+         SET status = 'read'
+         WHERE id = $1 AND recipient_id = $2 AND status <> 'read'
+         RETURNING id, chat_id, status`,
+        [messageId, socket.userId]
+      );
+
+      if (rows.length > 0) {
+        io.to(`chat:${rows[0].chat_id}`).emit('message-status-updated', {
+          messageId: rows[0].id,
+          status: rows[0].status,
+        });
+      }
+
+      if (typeof ack === 'function') {
+        ack({ success: true });
+      }
+    } catch (err) {
+      if (typeof ack === 'function') {
+        ack({ success: false, error: err.message });
+      }
+    }
   });
 
   // Typing indicator
-  socket.on("typing", ({ chatId, userId, isTyping }) => {
-    socket.to(`chat:${chatId}`).emit("user-typing", { userId, isTyping });
+  socket.on("typing", ({ chatId, isTyping }) => {
+    const normalizedChatId = Number(chatId);
+    if (!socket.joinedChatIds.has(normalizedChatId)) {
+      return;
+    }
+
+    socket.to(`chat:${normalizedChatId}`).emit("user-typing", { userId: socket.userId, isTyping });
   });
 
   // On disconnect
@@ -359,16 +576,52 @@ app.post("/signin", async (req, res) => {
     }
 
     try {
-        const result = await pool.query(
+        let userRecord = null;
+
+        const usersResult = await pool.query(
             `SELECT id, email, password, name as full_name, role,
                     gender, year_of_study, gpa, whatsapp, term, term_year,
                     program_level, program_id, department_id
-             FROM users 
+             FROM users
              WHERE email = $1`,
             [email]
         );
+        userRecord = usersResult.rows[0] || null;
 
-        const userRecord = result.rows[0];
+        if (!userRecord) {
+            const tutorsResult = await pool.query(
+                `SELECT id, email, password, full_name, term, program_level, program_id, department,
+                        NULL::text as gender,
+                        NULL::text as year_of_study,
+                        NULL::text as gpa,
+                        NULL::text as whatsapp,
+                        NULL::text as term_year,
+                        NULL::integer as department_id,
+                        'tutor'::text as role
+                 FROM tutors
+                 WHERE email = $1`,
+                [email]
+            );
+            userRecord = tutorsResult.rows[0] || null;
+        }
+
+        if (!userRecord) {
+            const tuteesResult = await pool.query(
+                `SELECT id, email, password, full_name, term, program_level, program_id, department,
+                        NULL::text as gender,
+                        NULL::text as year_of_study,
+                        NULL::text as gpa,
+                        NULL::text as whatsapp,
+                        NULL::text as term_year,
+                        NULL::integer as department_id,
+                        'tutee'::text as role
+                 FROM tutees
+                 WHERE email = $1`,
+                [email]
+            );
+            userRecord = tuteesResult.rows[0] || null;
+        }
+
         if (!userRecord) {
             return res.status(401).json({ success: false, message: "Invalid email or password" });
         }
@@ -686,21 +939,53 @@ app.post('/api/suggestions/:id/reject', async (req, res) => {
 
 // Get a single match by its ID (for chat)
 app.get('/api/match/:matchId', authenticateToken, async (req, res) => {
-    const { matchId } = req.params;
+    const matchId = parseInt(req.params.matchId, 10);
+    if (Number.isNaN(matchId)) {
+        return res.status(400).json({ error: 'Invalid match ID' });
+    }
+
     try {
-        const result = await pool.query(`
-            SELECT m.id, m.tutor_id, m.tutee_id, m.created_at,
-                   json_agg(json_build_object('code', c.code, 'name', c.name)) as courses
-            FROM matches m
-            JOIN match_courses mc ON m.id = mc.match_id
-            JOIN courses c ON mc.course_id = c.id
-            WHERE m.id = $1
-            GROUP BY m.id
-        `, [matchId]);
-        if (result.rows.length === 0) {
+        const matchContext = await getMatchContextByMatchId(matchId);
+        if (!matchContext) {
             return res.status(404).json({ error: 'Match not found' });
         }
-        res.json(result.rows[0]);
+
+        if (!userCanAccessMatch(req.user, matchContext)) {
+            return res.status(403).json({ error: 'Forbidden' });
+        }
+
+        let chatId = matchContext.chat_id;
+        if (!chatId) {
+            const client = await pool.connect();
+            try {
+                chatId = await ensureChatForMatch(client, matchId);
+            } finally {
+                client.release();
+            }
+        }
+
+        const result = await pool.query(`
+            SELECT m.id, m.tutor_id, m.tutee_id, m.created_at,
+                   tutor.name AS tutor_name,
+                   tutee.name AS tutee_name,
+                   COALESCE(
+                     json_agg(json_build_object('code', c.code, 'name', c.name))
+                     FILTER (WHERE c.id IS NOT NULL),
+                     '[]'
+                   ) AS courses
+            FROM matches m
+            JOIN users tutor ON m.tutor_id = tutor.id
+            JOIN users tutee ON m.tutee_id = tutee.id
+            LEFT JOIN match_courses mc ON m.id = mc.match_id
+            LEFT JOIN courses c ON mc.course_id = c.id
+            WHERE m.id = $1
+            GROUP BY m.id, tutor.name, tutee.name
+        `, [matchId]);
+
+        res.json({
+            ...result.rows[0],
+            chat_id: chatId,
+        });
     } catch (err) {
         console.error(err);
         res.status(500).json({ error: err.message });
@@ -708,8 +993,11 @@ app.get('/api/match/:matchId', authenticateToken, async (req, res) => {
 });
 
 // Get all matches for a user (UPDATED to include names)
-app.get('/api/matches/:userId', async (req, res) => {
+app.get('/api/matches/:userId', authenticateToken, async (req, res) => {
     const { userId } = req.params;
+    if (Number(req.user.id) !== parseInt(userId, 10) && req.user.role !== 'admin') {
+        return res.status(403).json({ error: 'Forbidden' });
+    }
     try {
         const matches = await pool.query(`
             SELECT 
@@ -719,12 +1007,18 @@ app.get('/api/matches/:userId', async (req, res) => {
                 m.created_at,
                 tutor.name as tutor_name,
                 tutee.name as tutee_name,
-                json_agg(json_build_object('code', c.code, 'name', c.name)) as courses
+                MIN(chat.id) as chat_id,
+                COALESCE(
+                  json_agg(json_build_object('code', c.code, 'name', c.name))
+                  FILTER (WHERE c.id IS NOT NULL),
+                  '[]'
+                ) as courses
             FROM matches m
             JOIN users tutor ON m.tutor_id = tutor.id
             JOIN users tutee ON m.tutee_id = tutee.id
-            JOIN match_courses mc ON m.id = mc.match_id
-            JOIN courses c ON mc.course_id = c.id
+            LEFT JOIN chats chat ON chat.match_id = m.id
+            LEFT JOIN match_courses mc ON m.id = mc.match_id
+            LEFT JOIN courses c ON mc.course_id = c.id
             WHERE m.tutor_id = $1 OR m.tutee_id = $1
             GROUP BY m.id, tutor.name, tutee.name
         `, [userId]);
@@ -748,15 +1042,28 @@ cron.schedule('0 * * * *', async () => {
 // ============ TUTEE SPECIFIC ENDPOINTS ============
 app.get('/api/matches/tutee/:tuteeId', authenticateToken, async (req, res) => {
   const { tuteeId } = req.params;
+  if (Number(req.user.id) !== parseInt(tuteeId, 10) && req.user.role !== 'admin') {
+    return res.status(403).json({ error: 'Forbidden' });
+  }
   try {
     const { rows } = await pool.query(`
       SELECT m.id, m.tutor_id, m.tutee_id, m.created_at,
-             json_agg(json_build_object('code', c.code, 'name', c.name)) as courses
+             tutor.name as tutor_name,
+             tutee.name as tutee_name,
+             MIN(chat.id) as chat_id,
+             COALESCE(
+               json_agg(json_build_object('code', c.code, 'name', c.name))
+               FILTER (WHERE c.id IS NOT NULL),
+               '[]'
+             ) as courses
       FROM matches m
-      JOIN match_courses mc ON m.id = mc.match_id
-      JOIN courses c ON mc.course_id = c.id
+      JOIN users tutor ON m.tutor_id = tutor.id
+      JOIN users tutee ON m.tutee_id = tutee.id
+      LEFT JOIN chats chat ON chat.match_id = m.id
+      LEFT JOIN match_courses mc ON m.id = mc.match_id
+      LEFT JOIN courses c ON mc.course_id = c.id
       WHERE m.tutee_id = $1
-      GROUP BY m.id
+      GROUP BY m.id, tutor.name, tutee.name
     `, [tuteeId]);
     res.json(rows);
   } catch (err) {
@@ -820,7 +1127,7 @@ app.put('/api/tutee/:id/courses', authenticateToken, async (req, res) => {
 
 // ============ PROFILE & COURSES ENDPOINTS ============
 app.get('/api/users/:id', authenticateToken, async (req, res) => {
-  if (req.user.id !== parseInt(req.params.id) && req.user.role !== 'admin') {
+  if (Number(req.user.id) !== parseInt(req.params.id, 10) && req.user.role !== 'admin') {
     return res.status(403).json({ error: 'Forbidden' });
   }
   try {
@@ -845,7 +1152,7 @@ app.get('/api/users/:id', authenticateToken, async (req, res) => {
 });
 
 app.put('/api/users/:id', authenticateToken, async (req, res) => {
-  if (req.user.id !== parseInt(req.params.id) && req.user.role !== 'admin') {
+  if (Number(req.user.id) !== parseInt(req.params.id, 10) && req.user.role !== 'admin') {
     return res.status(403).json({ error: 'Forbidden' });
   }
   const { id } = req.params;
@@ -883,7 +1190,7 @@ app.get('/api/courses', async (req, res) => {
 });
 
 app.get('/api/tutor/:id/courses', authenticateToken, async (req, res) => {
-  if (req.user.id !== parseInt(req.params.id) && req.user.role !== 'admin') {
+  if (Number(req.user.id) !== parseInt(req.params.id, 10) && req.user.role !== 'admin') {
     return res.status(403).json({ error: 'Forbidden' });
   }
   const { id } = req.params;
@@ -902,7 +1209,7 @@ app.get('/api/tutor/:id/courses', authenticateToken, async (req, res) => {
 });
 
 app.put('/api/tutor/:id/courses', authenticateToken, async (req, res) => {
-  if (req.user.id !== parseInt(req.params.id) && req.user.role !== 'admin') {
+  if (Number(req.user.id) !== parseInt(req.params.id, 10) && req.user.role !== 'admin') {
     return res.status(403).json({ error: 'Forbidden' });
   }
   const { id } = req.params;
@@ -930,15 +1237,47 @@ app.put('/api/tutor/:id/courses', authenticateToken, async (req, res) => {
 // ===== REST endpoint to fetch chat history =====
 app.get('/api/chats/:matchId/messages', authenticateToken, async (req, res) => {
   try {
-    const { matchId } = req.params;
+    const matchId = parseInt(req.params.matchId, 10);
+    if (Number.isNaN(matchId)) {
+      return res.status(400).json({ error: 'Invalid match ID' });
+    }
+
+    const matchContext = await getMatchContextByMatchId(matchId);
+    if (!matchContext) {
+      return res.status(404).json({ error: 'Match not found' });
+    }
+
+    if (!userCanAccessMatch(req.user, matchContext)) {
+      return res.status(403).json({ error: 'Forbidden' });
+    }
+
+    let chatId = matchContext.chat_id;
+    if (!chatId) {
+      const client = await pool.connect();
+      try {
+        chatId = await ensureChatForMatch(client, matchId);
+      } finally {
+        client.release();
+      }
+    }
+
     const messages = await pool.query(
-      `SELECT m.*, u.name as sender_name
+      `SELECT
+         m.id,
+         m.chat_id,
+         m.sender_id,
+         m.recipient_id,
+         m.encrypted_message,
+         m.media_url,
+         m.media_type,
+         m.status,
+         m.created_at,
+         u.name as sender_name
        FROM messages m
-       JOIN chats c ON m.chat_id = c.id
        JOIN users u ON m.sender_id = u.id
-       WHERE c.match_id = $1
+       WHERE m.chat_id = $1
        ORDER BY m.created_at ASC`,
-      [matchId]
+      [chatId]
     );
     res.json(messages.rows);
   } catch (err) {
@@ -968,3 +1307,4 @@ server.listen(PORT, '0.0.0.0', () => {
     console.log('Admin Login:  admin@usiu.ac.ke / PACS1234');
     console.log('='.repeat(60));
 });
+

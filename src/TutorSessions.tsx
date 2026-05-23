@@ -13,7 +13,7 @@ interface Match {
   tutee_id: number;
   created_at: string;
   courses: MatchCourse[];
-  tutee_name?: string; // we'll fetch separately
+  tutee_name?: string;
 }
 
 const TutorSessions = () => {
@@ -36,17 +36,7 @@ const TutorSessions = () => {
           headers: { Authorization: `Bearer ${token}` },
         });
         const data = await res.json();
-        // For each match, fetch tutee name
-        const withNames = await Promise.all(
-          data.map(async (match: Match) => {
-            const tuteeRes = await fetch(`${import.meta.env.VITE_API_URL}/api/users/${match.tutee_id}`, {
-              headers: { Authorization: `Bearer ${token}` },
-            });
-            const tutee = await tuteeRes.json();
-            return { ...match, tutee_name: tutee.name };
-          })
-        );
-        setMatches(withNames);
+        setMatches(data);
       } catch (error) {
         console.error("Error fetching matches:", error);
       } finally {
@@ -84,3 +74,4 @@ const TutorSessions = () => {
 };
 
 export default TutorSessions;
+

@@ -51,7 +51,7 @@ export default function SignIn() {
       else if (role === "tutor") window.location.href = "/tutor-dashboard";
       else if (role === "tutee") window.location.href = "/tutee-dashboard";
       else window.location.href = "/dashboard";
-    } catch (error) {
+    } catch {
       setErrorMessage("Network error. Please try again.");
       setIsLoading(false);
     }

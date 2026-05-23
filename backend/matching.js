@@ -64,6 +64,11 @@ async function autoMatch() {
                             [matchId, c.course_id]
                         );
                     }
+
+                    await client.query(
+                        `INSERT INTO chats (match_id) VALUES ($1)`,
+                        [matchId]
+                    );
                 }
 
                 // Stop if tutee reached 2 tutors
@@ -196,15 +201,9 @@ async function acceptSuggestion(suggestionId) {
             throw new Error('Tutee already has 2 tutors');
         }
 
-        // Drop tutor's current courses
+        // Keep the tutor's existing courses and add the newly accepted course if needed.
         await client.query(
-            `DELETE FROM tutor_courses WHERE tutor_id = $1`,
-            [tutor_id]
-        );
-
-        // Add the new course
-        await client.query(
-            `INSERT INTO tutor_courses (tutor_id, course_id) VALUES ($1, $2)`,
+            `INSERT INTO tutor_courses (tutor_id, course_id) VALUES ($1, $2) ON CONFLICT DO NOTHING`,
             [tutor_id, course_id]
         );
 

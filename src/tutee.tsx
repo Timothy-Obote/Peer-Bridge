@@ -179,7 +179,7 @@ const Tutee: React.FC = () => {
 
         console.log("Submitting registration with department:", formData.department);
         console.log("Current formData:", formData);
-
+        
         const submissionData = {
             email: formData.email,
             password: formData.password,
@@ -373,7 +373,6 @@ const Tutee: React.FC = () => {
                                 </select>
                             </div>
 
-                            {/* GPA Field */}
                             <div className="form-group">
                                 <label>Current GPA <span className="required">*</span></label>
                                 <input
@@ -391,7 +390,6 @@ const Tutee: React.FC = () => {
                                 <span className="field-hint">Enter your cumulative GPA (0.0 - 4.0)</span>
                             </div>
 
-                            {/* WhatsApp Number Field */}
                             <div className="form-group">
                                 <label>WhatsApp Number <span className="required">*</span></label>
                                 <input

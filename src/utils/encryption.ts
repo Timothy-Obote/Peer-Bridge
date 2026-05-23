@@ -7,11 +7,12 @@ export const generateAndStoreKeys = async () => {
   const privateKeyPem = forge.pki.privateKeyToPem(keypair.privateKey);
 
   localStorage.setItem('privateKey', privateKeyPem);
+  localStorage.setItem('publicKey', publicKeyPem);
 
   const token = localStorage.getItem('token');
   if (!token) return;
 
-  await fetch(`${import.meta.env.VITE_API_URL}/api/users/me/public-key`, {
+  const response = await fetch(`${import.meta.env.VITE_API_URL}/api/users/me/public-key`, {
     method: 'PUT',
     headers: {
       'Content-Type': 'application/json',
@@ -19,4 +20,8 @@ export const generateAndStoreKeys = async () => {
     },
     body: JSON.stringify({ publicKey: publicKeyPem }),
   });
+
+  if (!response.ok) {
+    throw new Error('Failed to store public key');
+  }
 };
