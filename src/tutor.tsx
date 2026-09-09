@@ -5,15 +5,27 @@ import { generateAndStoreKeys } from "./utils/encryption"; // adjust path if nee
 import type { Program, Course, TutorRegistrationData } from "./types/course.types";
 import "./tutor.css";
 
+function getPendingAccount() {
+    try {
+        const user = JSON.parse(localStorage.getItem("user") || "{}");
+        return {
+            email: user.email || "",
+            name: user.name || ""
+        };
+    } catch {
+        return { email: "", name: "" };
+    }
+}
+
 const Tutor: React.FC = () => {
     const navigate = useNavigate();
     const currentYear = new Date().getFullYear();
+    const pendingAccount = getPendingAccount();
 
     // Form state
     const [formData, setFormData] = useState<TutorRegistrationData>({
-        email: "",
-        password: "",
-        name: "",
+        email: pendingAccount.email,
+        name: pendingAccount.name,
         idNumber: "",
         gender: "",
         year_of_study: "",
@@ -182,7 +194,6 @@ const Tutor: React.FC = () => {
         
         const submissionData = {
             email: formData.email,
-            password: formData.password,
             name: formData.name,
             id_number: formData.idNumber || "",
             gender: formData.gender,
@@ -228,7 +239,6 @@ const Tutor: React.FC = () => {
             // Reset form
             setFormData({
                 email: "",
-                password: "",
                 name: "",
                 idNumber: "",
                 gender: "",
@@ -280,6 +290,7 @@ const Tutor: React.FC = () => {
                 <div className="tutor-header">
                     <h2 className="tutor-title">Tutor Registration</h2>
                     <p className="tutor-subtitle">PACS Department - Academic Support</p>
+                    <p className="field-hint">Account: {formData.name} &middot; {formData.email}</p>
                 </div>
 
                 <form onSubmit={handleSubmit} className="tutor-form">
@@ -291,47 +302,6 @@ const Tutor: React.FC = () => {
                         </div>
                         
                         <div className="form-grid">
-                            <div className="form-group full-width">
-                                <label>Full Name <span className="required">*</span></label>
-                                <input
-                                    type="text"
-                                    name="name"
-                                    value={formData.name}
-                                    onChange={handleInputChange}
-                                    placeholder="As appears on official documents"
-                                    required
-                                    disabled={loading.submit}
-                                />
-                            </div>
-
-                            <div className="form-group">
-                                <label>Email Address <span className="required">*</span></label>
-                                <input
-                                    type="email"
-                                    name="email"
-                                    value={formData.email}
-                                    onChange={handleInputChange}
-                                    placeholder="tutor@usiu.co.ke"
-                                    required
-                                    disabled={loading.submit}
-                                />
-                            </div>
-
-                            <div className="form-group">
-                                <label>Password <span className="required">*</span></label>
-                                <input
-                                    type="password"
-                                    name="password"
-                                    value={formData.password}
-                                    onChange={handleInputChange}
-                                    placeholder="Create secure password"
-                                    required
-                                    disabled={loading.submit}
-                                    minLength={6}
-                                />
-                                <span className="field-hint">Minimum 6 characters</span>
-                            </div>
-
                             <div className="form-group">
                                 <label>Student ID <span className="required">*</span></label>
                                 <input

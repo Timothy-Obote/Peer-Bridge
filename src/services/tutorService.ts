@@ -19,18 +19,17 @@ export const tutorService = {
 
     async registerTutor(data: {
         email: string;
-        password: string;
         name: string;
         id_number: string;
-        gender: string;               // new
-        year_of_study: string;         // new
-        gpa: string;                   // new
-        whatsapp: string;              // new
+        gender: string;
+        year_of_study: string;
+        gpa: string;
+        whatsapp: string;
         program_level: string;
         program_id: number;
         selectedCourses: number[];
         term: string;
-        term_year: string;             // new
+        term_year: string;
         department: string;
     }) {
         console.log('Tutor Registration Payload:');
@@ -50,7 +49,6 @@ export const tutorService = {
 
         const payload = {
             email: data.email,
-            password: data.password,
             name: data.name,
             id_number: data.id_number,
             gender: data.gender,
@@ -65,9 +63,13 @@ export const tutorService = {
             department: data.department
         };
 
+        const token = localStorage.getItem('token');
         const response = await fetch(`${import.meta.env.VITE_API_URL}/api/tutors`, {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: {
+                'Content-Type': 'application/json',
+                ...(token ? { Authorization: `Bearer ${token}` } : {})
+            },
             body: JSON.stringify(payload)
         });
 

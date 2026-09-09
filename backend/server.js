@@ -485,7 +485,12 @@ app.get('/debug/pharmacy-courses', async (req, res) => {
 
 // Health check
 app.get("/health", (req, res) => {
-    res.json({ status: "ok", time: new Date().toISOString() });
+  const databaseReady = pool.isReady();
+  res.status(databaseReady ? 200 : 503).json({
+    status: databaseReady ? "ok" : "degraded",
+    database: databaseReady ? "ok" : "unavailable",
+    time: new Date().toISOString(),
+  });
 });
 
 // Test database connection
@@ -503,47 +508,94 @@ app.get('/test-db', async (req, res) => {
 app.get("/admin/overview", async (req, res) => {
     try {
         const users = await pool.query(`
-            SELECT u.id, u.email, u.name, u.role, u.program_level, 
-                   u.term, u.term_year,
-                   u.gender, u.year_of_study, u.gpa, u.whatsapp,
-                   u.created_at,
-                   d.name as department,
-                   COALESCE(u.program_id::text, 'N/A') as program_id
+            SELECT u.id, u.email, u.name, u.role, u.created_at
             FROM users u
-            LEFT JOIN departments d ON u.department_id = d.id
             ORDER BY u.created_at DESC
         `);
 
-        const usersWithCourses = await Promise.all(users.rows.map(async (user) => {
-            let courses = [];
-            if (user.role === 'tutor') {
-                const result = await pool.query(`
-                    SELECT c.code, c.name
-                    FROM tutor_courses tc
-                    JOIN courses c ON tc.course_id = c.id
-                    WHERE tc.tutor_id = $1
-                `, [user.id]);
-                courses = result.rows.map(r => `${r.code} - ${r.name}`).join(', ') || 'None';
-            } else if (user.role === 'tutee') {
-                const result = await pool.query(`
-                    SELECT c.code, c.name
-                    FROM tutee_courses tc
-                    JOIN courses c ON tc.course_id = c.id
-                    WHERE tc.tutee_id = $1
-                `, [user.id]);
-                courses = result.rows.map(r => `${r.code} - ${r.name}`).join(', ') || 'None';
-            }
-            return { ...user, units: courses };
-        }));
+        const usersWithCoursesResult = await pool.query(`
+          SELECT u.id, u.email, u.name, u.role, u.created_at,
+               CASE
+                 WHEN u.role = 'tutor' THEN COALESCE((
+                   SELECT string_agg(c.code || ' - ' || c.name, ', ' ORDER BY c.code)
+                   FROM tutor_courses tc
+                   JOIN courses c ON tc.course_id = c.id
+                   WHERE tc.tutor_id = u.id
+                 ), 'None')
+                 WHEN u.role = 'tutee' THEN COALESCE((
+                   SELECT string_agg(c.code || ' - ' || c.name, ', ' ORDER BY c.code)
+                   FROM tutee_courses tc
+                   JOIN courses c ON tc.course_id = c.id
+                   WHERE tc.tutee_id = u.id
+                 ), 'None')
+                 ELSE 'None'
+               END AS units
+          FROM users u
+          ORDER BY u.created_at DESC
+        `);
+        const usersWithCourses = usersWithCoursesResult.rows;
 
         const tutors = usersWithCourses.filter(u => u.role === 'tutor');
         const tutees = usersWithCourses.filter(u => u.role === 'tutee');
+
+        // Pending matches = suggestions awaiting action
+        const pendingRes = await pool.query(
+            `SELECT COUNT(*)::int AS count FROM suggestions WHERE status = 'pending'`
+        );
+        const pending_matches = pendingRes.rows[0].count;
+
+        // Last successful match run
+        const lastMatchRes = await pool.query(
+            `SELECT MAX(created_at) AS last_match_at FROM matches`
+        );
+        const last_match_at = lastMatchRes.rows[0].last_match_at;
+
+        // Week-over-week growth (users created in the last 7 days vs prior 7 days)
+        const growthRes = await pool.query(`
+                SELECT
+                    SUM(CASE WHEN created_at >= NOW() - INTERVAL '7 days' THEN 1 ELSE 0 END)::int AS recent,
+                    SUM(CASE WHEN created_at >= NOW() - INTERVAL '14 days'
+                              AND created_at <  NOW() - INTERVAL '7 days' THEN 1 ELSE 0 END)::int AS previous
+                FROM users
+            `);
+        const recent = growthRes.rows[0].recent || 0;
+        const previous = growthRes.rows[0].previous || 0;
+
+        const roleGrowthRes = await pool.query(`
+                SELECT role,
+                        SUM(CASE WHEN created_at >= NOW() - INTERVAL '7 days' THEN 1 ELSE 0 END)::int AS recent,
+                        SUM(CASE WHEN created_at >= NOW() - INTERVAL '14 days'
+                                  AND created_at <  NOW() - INTERVAL '7 days' THEN 1 ELSE 0 END)::int AS previous
+                FROM users
+                GROUP BY role
+            `);
+        const roleGrowth = { tutor: { recent: 0, previous: 0 }, tutee: { recent: 0, previous: 0 } };
+        roleGrowthRes.rows.forEach(r => {
+            if (r.role === 'tutor') roleGrowth.tutor = { recent: r.recent || 0, previous: r.previous || 0 };
+            if (r.role === 'tutee') roleGrowth.tutee = { recent: r.recent || 0, previous: r.previous || 0 };
+        });
+
+        // Recent registrations for the activity feed
+        const recentUsersRes = await pool.query(`
+                SELECT id, name, role, created_at
+                FROM users
+                ORDER BY created_at DESC
+                LIMIT 5
+            `);
 
         res.json({
             summary: {
                 total_users: usersWithCourses.length,
                 tutors: tutors.length,
-                tutees: tutees.length
+                tutees: tutees.length,
+                pending_matches,
+                last_match_at,
+                growth: {
+                    total: { recent, previous },
+                    tutor: roleGrowth.tutor,
+                    tutee: roleGrowth.tutee,
+                },
+                recent_users: recentUsersRes.rows,
             },
             tutors,
             tutees
@@ -570,7 +622,7 @@ app.post("/signin", async (req, res) => {
         return res.status(200).json({
             success: true,
             message: "Admin login successful",
-            user: { id: 0, full_name: "Administrator", email, role: "admin" },
+            user: { id: 0, name: "Administrator", email, role: "admin" },
             token
         });
     }
@@ -579,9 +631,7 @@ app.post("/signin", async (req, res) => {
         let userRecord = null;
 
         const usersResult = await pool.query(
-            `SELECT id, email, password, name as full_name, role,
-                    gender, year_of_study, gpa, whatsapp, term, term_year,
-                    program_level, program_id, department_id
+            `SELECT id, email, password, name, role
              FROM users
              WHERE email = $1`,
             [email]
@@ -590,14 +640,7 @@ app.post("/signin", async (req, res) => {
 
         if (!userRecord) {
             const tutorsResult = await pool.query(
-                `SELECT id, email, password, full_name, term, program_level, program_id, department,
-                        NULL::text as gender,
-                        NULL::text as year_of_study,
-                        NULL::text as gpa,
-                        NULL::text as whatsapp,
-                        NULL::text as term_year,
-                        NULL::integer as department_id,
-                        'tutor'::text as role
+                `SELECT id, email, password, name, role
                  FROM tutors
                  WHERE email = $1`,
                 [email]
@@ -607,14 +650,7 @@ app.post("/signin", async (req, res) => {
 
         if (!userRecord) {
             const tuteesResult = await pool.query(
-                `SELECT id, email, password, full_name, term, program_level, program_id, department,
-                        NULL::text as gender,
-                        NULL::text as year_of_study,
-                        NULL::text as gpa,
-                        NULL::text as whatsapp,
-                        NULL::text as term_year,
-                        NULL::integer as department_id,
-                        'tutee'::text as role
+                `SELECT id, email, password, name, role
                  FROM tutees
                  WHERE email = $1`,
                 [email]
@@ -653,17 +689,34 @@ app.post("/signin", async (req, res) => {
 
 // ============ SIGNUP ============
 app.post("/signup", async (req, res) => {
-    const { email, password } = req.body;
-    if (!email || !password) {
-        return res.status(400).json({ success: false, message: "Email and password required" });
+    const { name, email, password, role } = req.body;
+    if (!name || !email || !password || !role) {
+        return res.status(400).json({ success: false, message: "Name, email, password, and role are required" });
     }
+
+    if (!['tutor', 'tutee'].includes(role)) {
+        return res.status(400).json({ success: false, message: "Please choose either tutor or tutee" });
+    }
+
     try {
         const hashedPassword = await bcrypt.hash(password, 10);
-        await pool.query(
-            "INSERT INTO users (email, password, role) VALUES ($1, $2, 'pending')",
-            [email, hashedPassword]
+        const result = await pool.query(
+            "INSERT INTO users (email, password, name, role) VALUES ($1, $2, $3, $4) RETURNING id, email, name, role",
+            [email, hashedPassword, name, role]
         );
-        res.status(201).json({ success: true, message: "User created. Please complete your profile." });
+        const user = result.rows[0];
+        const token = jwt.sign(
+            { id: user.id, email: user.email, role: user.role },
+            process.env.JWT_SECRET,
+            { expiresIn: '1d' }
+        );
+
+        res.status(201).json({
+            success: true,
+            message: "Registration successful! Please sign in.",
+            user,
+            token
+        });
     } catch (error) {
         if (error.code === '23505') {
             return res.status(400).json({ success: false, message: "Email already exists" });
@@ -674,7 +727,7 @@ app.post("/signup", async (req, res) => {
 });
 
 // ============ TUTEE REGISTRATION ============
-app.post('/api/tutees', async (req, res) => {
+app.post('/api/tutees', authenticateToken, async (req, res) => {
   const { 
     email, password, name, id_number, 
     gender, year_of_study, gpa, whatsapp,
@@ -687,43 +740,72 @@ app.post('/api/tutees', async (req, res) => {
   console.log('Program ID:', program_id);
   console.log('Selected Courses:', selectedCourses);
 
-  if (!email || !password) {
-    return res.status(400).json({ success: false, message: 'Email and password required' });
-  }
-
   const client = await pool.connect();
   try {
     await client.query('BEGIN');
 
-    const hashedPassword = await bcrypt.hash(password, 10);
+    const accountResult = await client.query(
+      'SELECT id, email, name, role, password FROM users WHERE id = $1 AND email = $2 FOR UPDATE',
+      [req.user.id, req.user.email]
+    );
 
-    let deptId = null;
-    if (department) {
-      const deptRes = await client.query('SELECT id FROM departments WHERE name = $1', [department]);
-      if (deptRes.rows.length > 0) {
-        deptId = deptRes.rows[0].id;
-      } else {
-        const newDept = await client.query(
-          'INSERT INTO departments (name) VALUES ($1) RETURNING id',
-          [department]
-        );
-        deptId = newDept.rows[0].id;
-      }
+    if (accountResult.rows.length === 0) {
+      const error = new Error('Please create your account before completing registration');
+      error.status = 400;
+      throw error;
+    }
+
+    const userId = accountResult.rows[0].id;
+    const existingPasswordHash = accountResult.rows[0].password;
+
+    // Check if tutee profile already exists
+    const existingTutee = await client.query('SELECT id FROM tutees WHERE email = $1', [email]);
+
+    if (existingTutee.rows.length > 0) {
+      // Update existing tutee profile
+      await client.query(
+        `UPDATE tutees SET
+          name = $1, id_number = $2,
+          gender = $3, year_of_study = $4, gpa = $5, whatsapp = $6,
+          term = $7, term_year = $8,
+          program_level = $9, program_id = $10, selected_courses = $11, department = $12
+         WHERE id = $13`,
+        [
+          name, id_number,
+          gender, year_of_study, gpa, whatsapp,
+          term, term_year,
+          program_level, program_id,
+          JSON.stringify(selectedCourses || []),
+          department,
+          existingTutee.rows[0].id
+        ]
+      );
+    } else {
+      // Insert new tutee profile
+      const tuteeResult = await client.query(
+        `INSERT INTO tutees (
+          email, name, id_number,
+          gender, year_of_study, gpa, whatsapp,
+          term, term_year,
+          program_level, program_id, selected_courses, department
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13) RETURNING id`,
+        [
+          email,
+          name,
+          id_number,
+          gender, year_of_study, gpa, whatsapp,
+          term, term_year,
+          program_level, program_id,
+          JSON.stringify(selectedCourses || []),
+          department
+        ]
+      );
     }
 
     const userRes = await client.query(
-      `INSERT INTO users (
-        email, password, name, id_number, role, 
-        department_id, program_level, program_id, term, term_year,
-        gender, year_of_study, gpa, whatsapp
-      ) VALUES ($1, $2, $3, $4, 'tutee', $5, $6, $7, $8, $9, $10, $11, $12, $13) RETURNING id`,
-      [
-        email, hashedPassword, name, id_number, deptId,
-        program_level, program_id, term, term_year,
-        gender, year_of_study, gpa, whatsapp
-      ]
+      `UPDATE users SET name = $1, role = 'tutee' WHERE id = $2 RETURNING id, email, name, role`,
+      [name, userId]
     );
-    const userId = userRes.rows[0].id;
 
     if (selectedCourses && Array.isArray(selectedCourses) && selectedCourses.length > 0) {
       console.log('Attempting to insert courses:', selectedCourses);
@@ -746,7 +828,7 @@ app.post('/api/tutees', async (req, res) => {
     console.log(' Registration successful for user ID:', userId);
 
     const token = jwt.sign(
-      { id: userId, email, role: 'tutee' },
+      { id: userId, email: userRes.rows[0].email, role: 'tutee' },
       process.env.JWT_SECRET,
       { expiresIn: '1d' }
     );
@@ -754,7 +836,7 @@ app.post('/api/tutees', async (req, res) => {
     res.status(201).json({
       success: true,
       message: 'Tutee registered successfully',
-      user: { id: userId, email, name, role: 'tutee' },
+      user: userRes.rows[0],
       token
     });
   } catch (err) {
@@ -763,6 +845,9 @@ app.post('/api/tutees', async (req, res) => {
     
     if (err.code === '23505') {
       return res.status(400).json({ success: false, message: 'Email already exists' });
+    }
+    if (err.status) {
+      return res.status(err.status).json({ success: false, message: err.message });
     }
     if (err.code === '23503') {
       return res.status(400).json({ 
@@ -779,7 +864,7 @@ app.post('/api/tutees', async (req, res) => {
 });
 
 // ============ TUTOR REGISTRATION ============
-app.post('/api/tutors', async (req, res) => {
+app.post('/api/tutors', authenticateToken, async (req, res) => {
   const { 
     email, password, name, id_number, 
     gender, year_of_study, gpa, whatsapp,
@@ -792,43 +877,72 @@ app.post('/api/tutors', async (req, res) => {
   console.log('Program ID:', program_id);
   console.log('Selected Courses:', selectedCourses);
 
-  if (!email || !password) {
-    return res.status(400).json({ success: false, message: 'Email and password required' });
-  }
-
   const client = await pool.connect();
   try {
     await client.query('BEGIN');
 
-    const hashedPassword = await bcrypt.hash(password, 10);
+    const accountResult = await client.query(
+      'SELECT id, email, name, role, password FROM users WHERE id = $1 AND email = $2 FOR UPDATE',
+      [req.user.id, req.user.email]
+    );
 
-    let deptId = null;
-    if (department) {
-      const deptRes = await client.query('SELECT id FROM departments WHERE name = $1', [department]);
-      if (deptRes.rows.length > 0) {
-        deptId = deptRes.rows[0].id;
-      } else {
-        const newDept = await client.query(
-          'INSERT INTO departments (name) VALUES ($1) RETURNING id',
-          [department]
-        );
-        deptId = newDept.rows[0].id;
-      }
+    if (accountResult.rows.length === 0) {
+      const error = new Error('Please create your account before completing registration');
+      error.status = 400;
+      throw error;
+    }
+
+    const userId = accountResult.rows[0].id;
+    const existingPasswordHash = accountResult.rows[0].password;
+
+    // Check if tutor profile already exists
+    const existingTutor = await client.query('SELECT id FROM tutors WHERE email = $1', [email]);
+
+    if (existingTutor.rows.length > 0) {
+      // Update existing tutor profile
+      await client.query(
+        `UPDATE tutors SET
+          name = $1, id_number = $2,
+          gender = $3, year_of_study = $4, gpa = $5, whatsapp = $6,
+          term = $7, term_year = $8,
+          program_level = $9, program_id = $10, selected_courses = $11, department = $12
+         WHERE id = $13`,
+        [
+          name, id_number,
+          gender, year_of_study, gpa, whatsapp,
+          term, term_year,
+          program_level, program_id,
+          JSON.stringify(selectedCourses || []),
+          department,
+          existingTutor.rows[0].id
+        ]
+      );
+    } else {
+      // Insert new tutor profile
+      const tutorResult = await client.query(
+        `INSERT INTO tutors (
+          email, name, id_number,
+          gender, year_of_study, gpa, whatsapp,
+          term, term_year,
+          program_level, program_id, selected_courses, department
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13) RETURNING id`,
+        [
+          email,
+          name,
+          id_number,
+          gender, year_of_study, gpa, whatsapp,
+          term, term_year,
+          program_level, program_id,
+          JSON.stringify(selectedCourses || []),
+          department
+        ]
+      );
     }
 
     const userRes = await client.query(
-      `INSERT INTO users (
-        email, password, name, id_number, role, 
-        department_id, program_level, program_id, term, term_year,
-        gender, year_of_study, gpa, whatsapp
-      ) VALUES ($1, $2, $3, $4, 'tutor', $5, $6, $7, $8, $9, $10, $11, $12, $13) RETURNING id`,
-      [
-        email, hashedPassword, name, id_number, deptId,
-        program_level, program_id, term, term_year,
-        gender, year_of_study, gpa, whatsapp
-      ]
+      `UPDATE users SET name = $1, role = 'tutor' WHERE id = $2 RETURNING id, email, name, role`,
+      [name, userId]
     );
-    const userId = userRes.rows[0].id;
 
     if (selectedCourses && Array.isArray(selectedCourses) && selectedCourses.length > 0) {
       console.log('Attempting to insert courses:', selectedCourses);
@@ -851,7 +965,7 @@ app.post('/api/tutors', async (req, res) => {
     console.log('Registration successful for user ID:', userId);
 
     const token = jwt.sign(
-      { id: userId, email, role: 'tutor' },
+      { id: userId, email: userRes.rows[0].email, role: 'tutor' },
       process.env.JWT_SECRET,
       { expiresIn: '1d' }
     );
@@ -859,7 +973,7 @@ app.post('/api/tutors', async (req, res) => {
     res.status(201).json({
       success: true,
       message: 'Tutor registered successfully',
-      user: { id: userId, email, name, role: 'tutor' },
+      user: userRes.rows[0],
       token
     });
   } catch (err) {
@@ -868,6 +982,9 @@ app.post('/api/tutors', async (req, res) => {
     
     if (err.code === '23505') {
       return res.status(400).json({ success: false, message: 'Email already exists' });
+    }
+    if (err.status) {
+      return res.status(err.status).json({ success: false, message: err.message });
     }
     if (err.code === '23503') {
       return res.status(400).json({ 
@@ -1028,6 +1145,249 @@ app.get('/api/matches/:userId', authenticateToken, async (req, res) => {
     }
 });
 
+// ============ TUTOR SESSIONS (modern My Sessions page data) ============
+app.get('/api/tutor-sessions/:tutorId', authenticateToken, async (req, res) => {
+  const { tutorId } = req.params;
+  const requestedId = parseInt(tutorId, 10);
+
+  if (Number(req.user.id) !== requestedId && req.user.role !== 'admin') {
+    return res.status(403).json({ error: 'Forbidden' });
+  }
+
+  try {
+    // Fetch all matches for this tutor with course details
+    const matchesResult = await pool.query(`
+      SELECT
+        m.id,
+        m.tutor_id,
+        m.tutee_id,
+        m.created_at,
+        tutor.name AS tutor_name,
+        tutee.name AS tutee_name,
+        MIN(chat.id) AS chat_id,
+        COALESCE(
+          json_agg(json_build_object('code', c.code, 'name', c.name))
+          FILTER (WHERE c.id IS NOT NULL),
+          '[]'
+        ) AS courses
+      FROM matches m
+      JOIN users tutor ON m.tutor_id = tutor.id
+      JOIN users tutee ON m.tutee_id = tutee.id
+      LEFT JOIN chats chat ON chat.match_id = m.id
+      LEFT JOIN match_courses mc ON m.id = mc.match_id
+      LEFT JOIN courses c ON mc.course_id = c.id
+      WHERE m.tutor_id = $1
+      GROUP BY m.id, tutor.name, tutee.name
+      ORDER BY m.created_at DESC
+    `, [requestedId]);
+
+    const matchRows = matchesResult.rows;
+
+    // Build session objects
+    // All existing matches are treated as "completed" since there is no
+    // scheduled datetime column.  Future enhancement: add a sessions table
+    // with scheduled_at, duration, status, rating and feedback columns.
+    const sessions = matchRows.map(row => ({
+      id: row.id,
+      tutee_id: row.tutee_id,
+      tutee_name: row.tutee_name || 'Unknown Student',
+      courses: row.courses || [],
+      started_at: row.created_at,
+      status: 'completed',
+      chat_id: row.chat_id || null,
+    }));
+
+    // Summary counts
+    const total = sessions.length;
+    const completed = sessions.length;
+    const upcoming = 0;
+    const ongoing = 0;
+
+    // --- Insights ---
+
+    // Unique students helped
+    const uniqueStudents = new Set(sessions.map(s => s.tutee_id)).size;
+
+    // Sessions this week (created in the last 7 days)
+    const oneWeekAgo = new Date();
+    oneWeekAgo.setDate(oneWeekAgo.getDate() - 7);
+    const sessionsThisWeek = sessions.filter(
+      s => new Date(s.started_at) >= oneWeekAgo
+    ).length;
+
+    // Weekly activity: sessions (and estimated hours) per weekday, Mon–Sun
+    const dayNames = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
+    const dailyCounts = Array(7).fill(0);
+    sessions.forEach(s => {
+      const d = new Date(s.started_at);
+      const jsDay = d.getDay();        // 0 = Sunday, 1 = Monday, ...
+      const idx = (jsDay + 6) % 7;     // shift so Monday = 0
+      dailyCounts[idx]++;
+    });
+
+    // Estimate 1.5 hours per session (placeholder until real duration data exists)
+    const ESTIMATED_HOURS_PER_SESSION = 1.5;
+    const weeklyActivity = dayNames.map((day, i) => ({
+      day,
+      sessions: dailyCounts[i],
+      hours: dailyCounts[i] * ESTIMATED_HOURS_PER_SESSION,
+    }));
+
+    // Most active day
+    let mostActiveDay = 'Monday';
+    let mostActiveDayHours = 0;
+    let maxSessions = 0;
+    for (let i = 0; i < 7; i++) {
+      if (dailyCounts[i] > maxSessions) {
+        maxSessions = dailyCounts[i];
+        mostActiveDay = dayNames[i];
+        mostActiveDayHours = dailyCounts[i] * ESTIMATED_HOURS_PER_SESSION;
+      }
+    }
+
+    // If no sessions, show a friendly default
+    if (sessions.length === 0) {
+      mostActiveDay = 'Monday';
+      mostActiveDayHours = 0;
+    }
+
+    res.json({
+      sessions,
+      summary: {
+        total,
+        upcoming,
+        ongoing,
+        completed,
+      },
+      insights: {
+        weeklyActivity,
+        mostActiveDay,
+        mostActiveDayHours: Number(mostActiveDayHours.toFixed(1)),
+        sessionsThisWeek,
+        studentsHelped: uniqueStudents,
+      },
+    });
+  } catch (err) {
+    console.error('Tutor sessions error:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ============ TUTEE SESSIONS (modern My Sessions page data) ============
+app.get('/api/tutee-sessions/:tuteeId', authenticateToken, async (req, res) => {
+  const { tuteeId } = req.params;
+  const requestedId = parseInt(tuteeId, 10);
+
+  if (Number(req.user.id) !== requestedId && req.user.role !== 'admin') {
+    return res.status(403).json({ error: 'Forbidden' });
+  }
+
+  try {
+    const matchesResult = await pool.query(`
+      SELECT
+        m.id,
+        m.tutor_id,
+        m.tutee_id,
+        m.created_at,
+        tutor.name AS tutor_name,
+        tutee.name AS tutee_name,
+        MIN(chat.id) AS chat_id,
+        COALESCE(
+          json_agg(json_build_object('code', c.code, 'name', c.name))
+          FILTER (WHERE c.id IS NOT NULL),
+          '[]'
+        ) AS courses
+      FROM matches m
+      JOIN users tutor ON m.tutor_id = tutor.id
+      JOIN users tutee ON m.tutee_id = tutee.id
+      LEFT JOIN chats chat ON chat.match_id = m.id
+      LEFT JOIN match_courses mc ON m.id = mc.match_id
+      LEFT JOIN courses c ON mc.course_id = c.id
+      WHERE m.tutee_id = $1
+      GROUP BY m.id, tutor.name, tutee.name
+      ORDER BY m.created_at DESC
+    `, [requestedId]);
+
+    const matchRows = matchesResult.rows;
+
+    const sessions = matchRows.map(row => ({
+      id: row.id,
+      tutor_id: row.tutor_id,
+      tutee_id: row.tutee_id,
+      tutor_name: row.tutor_name || 'Unknown Tutor',
+      courses: row.courses || [],
+      started_at: row.created_at,
+      status: 'completed',
+      chat_id: row.chat_id || null,
+    }));
+
+    const total = sessions.length;
+    const completed = sessions.length;
+    const upcoming = 0;
+    const ongoing = 0;
+
+    const uniqueTutors = new Set(sessions.map(s => s.tutor_id)).size;
+
+    const oneWeekAgo = new Date();
+    oneWeekAgo.setDate(oneWeekAgo.getDate() - 7);
+    const sessionsThisWeek = sessions.filter(
+      s => new Date(s.started_at) >= oneWeekAgo
+    ).length;
+
+    const dayNames = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
+    const dailyCounts = Array(7).fill(0);
+    sessions.forEach(s => {
+      const d = new Date(s.started_at);
+      const jsDay = d.getDay();
+      const idx = (jsDay + 6) % 7;
+      dailyCounts[idx]++;
+    });
+
+    const ESTIMATED_HOURS_PER_SESSION = 1.5;
+    const weeklyActivity = dayNames.map((day, i) => ({
+      day,
+      sessions: dailyCounts[i],
+      hours: dailyCounts[i] * ESTIMATED_HOURS_PER_SESSION,
+    }));
+
+    let mostActiveDay = 'Monday';
+    let mostActiveDayHours = 0;
+    let maxSessions = 0;
+    for (let i = 0; i < 7; i++) {
+      if (dailyCounts[i] > maxSessions) {
+        maxSessions = dailyCounts[i];
+        mostActiveDay = dayNames[i];
+        mostActiveDayHours = dailyCounts[i] * ESTIMATED_HOURS_PER_SESSION;
+      }
+    }
+
+    if (sessions.length === 0) {
+      mostActiveDay = 'Monday';
+      mostActiveDayHours = 0;
+    }
+
+    res.json({
+      sessions,
+      summary: {
+        total,
+        upcoming,
+        ongoing,
+        completed,
+      },
+      insights: {
+        weeklyActivity,
+        mostActiveDay,
+        mostActiveDayHours: Number(mostActiveDayHours.toFixed(1)),
+        sessionsThisWeek,
+        tutorsHelped: uniqueTutors,
+      },
+    });
+  } catch (err) {
+    console.error('Tutee sessions error:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // Scheduled matching
 cron.schedule('0 * * * *', async () => {
     console.log('Running scheduled matching...');
@@ -1133,19 +1493,39 @@ app.get('/api/users/:id', authenticateToken, async (req, res) => {
   try {
     const { id } = req.params;
     const user = await pool.query(
-      `SELECT u.id, u.email, u.name, u.role, u.id_number, 
-              u.gender, u.year_of_study, u.gpa, u.whatsapp,
-              u.term, u.term_year,
-              u.avatar_url, u.last_seen, u.is_online,
-              u.department_id, d.name as department,
-              u.program_level, u.program_id
+      `SELECT u.id, u.email, u.name, u.role, u.avatar_url, u.last_seen, u.is_online
        FROM users u
-       LEFT JOIN departments d ON u.department_id = d.id
        WHERE u.id = $1`,
       [id]
     );
     if (user.rows.length === 0) return res.status(404).json({ error: 'User not found' });
-    res.json(user.rows[0]);
+    
+    const baseUser = user.rows[0];
+    
+    // Enrich with role-specific profile data
+    if (baseUser.role === 'tutor') {
+      const tutorProfile = await pool.query(
+        `SELECT id_number, gender, whatsapp, term, term_year, program_level, program_id, department
+         FROM tutors
+         WHERE email = $1`,
+        [baseUser.email]
+      );
+      if (tutorProfile.rows.length > 0) {
+        return res.json({ ...baseUser, ...tutorProfile.rows[0] });
+      }
+    } else if (baseUser.role === 'tutee') {
+      const tuteeProfile = await pool.query(
+        `SELECT id_number, gender, whatsapp, term, term_year, program_level, program_id, department
+         FROM tutees
+         WHERE email = $1`,
+        [baseUser.email]
+      );
+      if (tuteeProfile.rows.length > 0) {
+        return res.json({ ...baseUser, ...tuteeProfile.rows[0] });
+      }
+    }
+    
+    res.json(baseUser);
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -1156,14 +1536,16 @@ app.put('/api/users/:id', authenticateToken, async (req, res) => {
     return res.status(403).json({ error: 'Forbidden' });
   }
   const { id } = req.params;
-  const { name, id_number, department_id, term, term_year, gender, year_of_study, gpa, whatsapp } = req.body;
+  const { name, avatar_url, last_seen, is_online } = req.body;
   try {
     await pool.query(
       `UPDATE users SET 
-        name = $1, id_number = $2, department_id = $3, term = $4, term_year = $5,
-        gender = $6, year_of_study = $7, gpa = $8, whatsapp = $9
-       WHERE id = $10`,
-      [name, id_number, department_id, term, term_year, gender, year_of_study, gpa, whatsapp, id]
+        name = COALESCE($1, name),
+        avatar_url = COALESCE($2, avatar_url),
+        last_seen = COALESCE($3, last_seen),
+        is_online = COALESCE($4, is_online)
+       WHERE id = $5`,
+      [name, avatar_url, last_seen, is_online, id]
     );
     res.json({ success: true });
   } catch (err) {
@@ -1298,13 +1680,21 @@ app.use((err, req, res, next) => {
 
 // ============ START SERVER =============
 const PORT = process.env.PORT || 5001;
-server.listen(PORT, '0.0.0.0', () => {
+const startServer = async () => {
+  await pool.initialize();
+  server.listen(PORT, '0.0.0.0', () => {
     console.log('='.repeat(60));
     console.log('Server Status: RUNNING');
     console.log(`Backend Server:   http://localhost:${PORT}`);
     console.log(`Frontend (Vite):  http://localhost:5173`);
     console.log('='.repeat(60));
-    console.log('Admin Login:  admin@usiu.ac.ke / PACS1234');
+    console.log('Admin Login:  configured in application settings');
     console.log('='.repeat(60));
+  });
+};
+
+startServer().catch((err) => {
+  console.error('Backend startup failed:', err.message);
+  process.exitCode = 1;
 });
 

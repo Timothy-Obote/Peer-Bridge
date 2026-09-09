@@ -5,25 +5,37 @@ import { generateAndStoreKeys } from "./utils/encryption"; // adjust path if nee
 import type { Program, Course, TuteeRegistrationData } from "./types/course.types";
 import "./tutee.css";
 
+function getPendingAccount() {
+    try {
+        const user = JSON.parse(localStorage.getItem("user") || "{}");
+        return {
+            email: user.email || "",
+            name: user.name || ""
+        };
+    } catch {
+        return { email: "", name: "" };
+    }
+}
+
 const Tutee: React.FC = () => {
     const navigate = useNavigate();
     const currentYear = new Date().getFullYear();
+    const pendingAccount = getPendingAccount();
 
     // Form state
     const [formData, setFormData] = useState<TuteeRegistrationData>({
-        email: "",
-        password: "",
-        name: "",
+        email: pendingAccount.email,
+        name: pendingAccount.name,
         idNumber: "",
         gender: "",
         year_of_study: "",
         gpa: "",
         whatsapp: "",
+        term: "FS",
+        term_year: currentYear.toString(),
         program_level: "",
         program_id: "",
         selected_courses: [],
-        term: "FS",
-        term_year: currentYear.toString(),
         department: ""
     });
 
@@ -182,7 +194,6 @@ const Tutee: React.FC = () => {
         
         const submissionData = {
             email: formData.email,
-            password: formData.password,
             name: formData.name,
             id_number: formData.idNumber || "",
             gender: formData.gender,
@@ -222,7 +233,6 @@ const Tutee: React.FC = () => {
             // Reset form
             setFormData({
                 email: "",
-                password: "",
                 name: "",
                 idNumber: "",
                 gender: "",
@@ -274,6 +284,7 @@ const Tutee: React.FC = () => {
                 <div className="tutee-header">
                     <h2 className="tutee-title">Tutee Registration</h2>
                     <p className="tutee-subtitle">PACS Department</p>
+                    <p className="field-hint">Account: {formData.name} &middot; {formData.email}</p>
                 </div>
 
                 <form onSubmit={handleSubmit} className="tutee-form">
@@ -285,47 +296,6 @@ const Tutee: React.FC = () => {
                         </div>
                         
                         <div className="form-grid">
-                            <div className="form-group full-width">
-                                <label>Full Name <span className="required">*</span></label>
-                                <input
-                                    type="text"
-                                    name="name"
-                                    value={formData.name}
-                                    onChange={handleInputChange}
-                                    placeholder="As appears on official documents"
-                                    required
-                                    disabled={loading.submit}
-                                />
-                            </div>
-
-                            <div className="form-group">
-                                <label>Email Address <span className="required">*</span></label>
-                                <input
-                                    type="email"
-                                    name="email"
-                                    value={formData.email}
-                                    onChange={handleInputChange}
-                                    placeholder="student@usiu.co.ke"
-                                    required
-                                    disabled={loading.submit}
-                                />
-                            </div>
-
-                            <div className="form-group">
-                                <label>Password <span className="required">*</span></label>
-                                <input
-                                    type="password"
-                                    name="password"
-                                    value={formData.password}
-                                    onChange={handleInputChange}
-                                    placeholder="Create secure password"
-                                    required
-                                    disabled={loading.submit}
-                                    minLength={6}
-                                />
-                                <span className="field-hint">Minimum 6 characters</span>
-                            </div>
-
                             <div className="form-group">
                                 <label>Student ID <span className="required">*</span></label>
                                 <input

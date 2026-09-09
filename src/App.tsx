@@ -6,7 +6,7 @@ import Tutee from "./tutee";
 import TutorDashboard from "./TutorDashboard";
 import TutorSessions from "./TutorSessions";
 import TutorMatches from "./TutorMatches";
-import TutorPerformance from "./TutorPerformance";
+import TutorPerformanceReports from "./TutorPerformanceReports";
 import TutorProfile from "./TutorProfile";
 import TuteeDashboard from "./TuteeDashboard";
 import TuteeSessions from "./TuteeSessions";
@@ -43,7 +43,7 @@ function Home() {
   };
 
   const handleSignUpClick = () => {
-    navigate("/dashboard");
+    navigate("/signup");
   };
 
   const handleSignInClick = () => {
@@ -62,8 +62,10 @@ function Home() {
           navigate('/tutor-dashboard', { replace: true });
         } else if (role === 'tutee') {
           navigate('/tutee-dashboard', { replace: true });
+        } else if (role === 'pending' && userData.intendedRole) {
+          navigate(`/${userData.intendedRole}`, { replace: true });
         } else {
-          navigate('/dashboard', { replace: true });
+          navigate('/signup', { replace: true });
         }
       } catch {
         localStorage.removeItem('user');
@@ -204,6 +206,35 @@ function ProtectedRoute({ children, allowedRoles }: ProtectedRouteProps) {
   }
 }
 
+interface RegistrationRouteProps {
+  children: React.ReactNode;
+  role: 'tutor' | 'tutee';
+}
+
+function RegistrationRoute({ children, role }: RegistrationRouteProps) {
+  const user = localStorage.getItem('user');
+
+  if (!user) {
+    return <Navigate to="/signup" replace />;
+  }
+
+  try {
+    const userData = JSON.parse(user);
+    // Allow access if user already has this role, or is pending with matching intendedRole
+    if (userData.role === role || (userData.role === 'pending' && userData.intendedRole === role)) {
+      return <>{children}</>;
+    }
+
+    if (userData.role === 'tutor') return <Navigate to="/tutor-dashboard" replace />;
+    if (userData.role === 'tutee') return <Navigate to="/tutee-dashboard" replace />;
+    if (userData.role === 'admin') return <Navigate to="/admin-dashboard" replace />;
+  } catch {
+    localStorage.removeItem('user');
+  }
+
+  return <Navigate to="/signup" replace />;
+}
+
 // ---------------- APP COMPONENT ----------------
 export default function App() {
   return (
@@ -212,11 +243,26 @@ export default function App() {
         {/* Public routes */}
         <Route path="/" element={<Home />} />
         <Route path="/signin" element={<SignIn />} />
-        <Route path="/dashboard" element={<LoggedIn />} />
+        <Route path="/signup" element={<LoggedIn />} />
+        <Route path="/dashboard" element={<Navigate to="/signup" replace />} />
 
         {/* Registration forms – public */}
-        <Route path="/tutor" element={<Tutor />} />
-        <Route path="/tutee" element={<Tutee />} />
+        <Route
+          path="/tutor"
+          element={
+            <RegistrationRoute role="tutor">
+              <Tutor />
+            </RegistrationRoute>
+          }
+        />
+        <Route
+          path="/tutee"
+          element={
+            <RegistrationRoute role="tutee">
+              <Tutee />
+            </RegistrationRoute>
+          }
+        />
 
         {/* Admin Dashboard with nested routes */}
         <Route
@@ -274,7 +320,7 @@ export default function App() {
           path="/tutor/performance"
           element={
             <ProtectedRoute allowedRoles={['tutor', 'admin']}>
-              <TutorPerformance />
+              <TutorPerformanceReports />
             </ProtectedRoute>
           }
         />

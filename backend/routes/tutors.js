@@ -1,18 +1,16 @@
 const express = require('express');
 const router = express.Router();
 const pool = require('../db');   // now a pg.Pool instance
-const bcrypt = require('bcrypt');
 
-// Register tutor with password and multiple courses
+// Register tutor with multiple courses
 router.post('/tutors', async (req, res) => {
-    const client = await pool.connect();   // get a client for transaction
+    const client = await pool.connect();
     
     try {
         await client.query('BEGIN');
         
         const { 
             email, 
-            password, 
             name, 
             idNumber, 
             term, 
@@ -33,9 +31,6 @@ router.post('/tutors', async (req, res) => {
             });
         }
         
-        // Hash password
-        const hashedPassword = await bcrypt.hash(password, 10);
-        
         // Convert courses array to JSON string (or let pg handle it)
         const coursesJson = JSON.stringify(selected_courses);
         
@@ -52,12 +47,11 @@ router.post('/tutors', async (req, res) => {
         // Insert tutor – use RETURNING to get the new id
         const result = await client.query(`
             INSERT INTO tutors 
-            (email, password, full_name, id_number, term, program_level, program_id, selected_courses, department) 
-            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+            (email, name, id_number, term, program_level, program_id, selected_courses, department) 
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
             RETURNING id
         `, [
             email, 
-            hashedPassword, 
             name, 
             idNumber, 
             term, 
@@ -71,7 +65,7 @@ router.post('/tutors', async (req, res) => {
 
         // Update users table (if it exists)
         await client.query(
-            'UPDATE users SET role = $1, full_name = $2 WHERE email = $3',
+            'UPDATE users SET role = $1, name = $2 WHERE email = $3',
             ['tutor', name, email]
         );
                         
@@ -103,7 +97,7 @@ router.get('/tutors/:id/courses', async (req, res) => {
         const { id } = req.params;
         
         const tutorResult = await pool.query(`
-            SELECT selected_courses, program_id, full_name, department 
+            SELECT selected_courses, program_id, name, department 
             FROM tutors 
             WHERE id = $1
         `, [id]);

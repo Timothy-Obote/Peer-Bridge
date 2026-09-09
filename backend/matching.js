@@ -12,7 +12,7 @@ async function autoMatch() {
 
         // Find all tutees who have fewer than 2 tutors
         const tutees = await client.query(`
-            SELECT u.id, u.department_id
+            SELECT u.id, (SELECT te.department FROM tutees te WHERE te.email = u.email) as department
             FROM users u
             WHERE u.role = 'tutee'
               AND (SELECT COUNT(*) FROM matches WHERE tutee_id = u.id) < 2
@@ -34,13 +34,13 @@ async function autoMatch() {
                 FROM users t
                 JOIN tutor_courses tc ON t.id = tc.tutor_id
                 WHERE t.role = 'tutor'
-                  AND t.department_id = $1
+                  AND (SELECT tr.department FROM tutors tr WHERE tr.email = t.email) = $1
                   AND tc.course_id = ANY($2::int[])
                   AND (SELECT COUNT(*) FROM matches WHERE tutor_id = t.id) < 2
                   AND NOT EXISTS (
                       SELECT 1 FROM matches WHERE tutor_id = t.id AND tutee_id = $3
                   )
-            `, [tutee.department_id, courseIds, tutee.id]);
+            `, [tutee.department, courseIds, tutee.id]);
 
             for (const tutor of tutors.rows) {
                 // Get common courses between this tutor and tutee
@@ -100,7 +100,7 @@ async function generateSuggestions() {
     try {
         // Find tutees with capacity (<2 tutors) and at least one needed course
         const tutees = await client.query(`
-            SELECT u.id, u.department_id
+            SELECT u.id, (SELECT te.department FROM tutees te WHERE te.email = u.email) as department
             FROM users u
             WHERE u.role = 'tutee'
               AND (SELECT COUNT(*) FROM matches WHERE tutee_id = u.id) < 2
@@ -118,9 +118,9 @@ async function generateSuggestions() {
                 SELECT t.id
                 FROM users t
                 WHERE t.role = 'tutor'
-                  AND t.department_id = $1
+                  AND (SELECT tr.department FROM tutors tr WHERE tr.email = t.email) = $1
                   AND (SELECT COUNT(*) FROM matches WHERE tutor_id = t.id) < 2
-            `, [tutee.department_id]);
+            `, [tutee.department]);
 
             for (const tutor of tutors.rows) {
                 // Skip if already matched with this tutee (any match)

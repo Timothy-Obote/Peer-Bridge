@@ -1,7 +1,6 @@
-// src/SignIn.tsx
 import React, { useState } from "react";
-import { useNavigate } from "react-router-dom";
-import { generateAndStoreKeys } from "./utils/encryption"; // adjust path if needed 
+import { Link, useNavigate } from "react-router-dom";
+import { generateAndStoreKeys } from "./utils/encryption";
 import "./SignIn.css";
 
 export default function SignIn() {
@@ -11,89 +10,103 @@ export default function SignIn() {
   const [errorMessage, setErrorMessage] = useState("");
   const navigate = useNavigate();
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleSubmit = async (event: React.FormEvent) => {
+    event.preventDefault();
     setIsLoading(true);
     setErrorMessage("");
 
     try {
-      const res = await fetch(`${import.meta.env.VITE_API_URL}/signin`, {
+      const response = await fetch(`${import.meta.env.VITE_API_URL}/signin`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email, password }),
       });
+      const data = await response.json();
 
-      const data = await res.json();
-
-      if (!res.ok) {
-        setErrorMessage(data.message || "Invalid credentials");
-        setIsLoading(false);
+      if (!response.ok) {
+        setErrorMessage(data.message || "Invalid email or password.");
         return;
       }
 
       localStorage.setItem("user", JSON.stringify(data.user));
       if (data.token) localStorage.setItem("token", data.token);
 
-      // Generate encryption keys if not already present
-      const existingPrivateKey = localStorage.getItem('privateKey');
-      if (!existingPrivateKey) {
+      if (!localStorage.getItem("privateKey")) {
         try {
           await generateAndStoreKeys();
-        } catch (keyErr) {
-          console.error("Key generation failed, but login succeeded:", keyErr);
-          // Continue login even if key generation fails – chat can fall back to unencrypted
+        } catch (keyError) {
+          console.error("Key generation failed after sign in:", keyError);
         }
       }
 
       const role = data.user?.role;
-      // Redirect based on role
-      if (role === "admin") navigate("/admin-dashboard");
-      else if (role === "tutor") window.location.href = "/tutor-dashboard";
-      else if (role === "tutee") window.location.href = "/tutee-dashboard";
-      else window.location.href = "/dashboard";
+      if (role === "admin") navigate("/admin-dashboard", { replace: true });
+      else if (role === "tutor") navigate("/tutor-dashboard", { replace: true });
+      else if (role === "tutee") navigate("/tutee-dashboard", { replace: true });
+      else navigate("/signup", { replace: true });
     } catch {
       setErrorMessage("Network error. Please try again.");
+    } finally {
       setIsLoading(false);
     }
   };
 
+  const handleForgotPassword = () => {
+    setErrorMessage("Password recovery is not available yet. Please contact the PeerBridge administrator.");
+  };
+
   return (
     <div className="signin-page">
-      <div className="signin-container">
-        <button className="back-home" onClick={() => navigate("/")}>
-          ← Back to Home
-        </button>
-        <h2>Sign In</h2>
-        {errorMessage && <div className="error-message">{errorMessage}</div>}
+      <main className="signin-container" aria-labelledby="signin-title">
+        <p className="auth-brand">PeerBridge</p>
+        <h1 id="signin-title">Welcome Back</h1>
+
+        {errorMessage && <div className="error-message" role="alert">{errorMessage}</div>}
+
         <form onSubmit={handleSubmit}>
           <div className="form-group">
+            <label htmlFor="signin-email">Email</label>
             <input
+              id="signin-email"
               type="email"
-              placeholder="Email"
               value={email}
-              onChange={(e) => setEmail(e.target.value)}
+              onChange={(event) => setEmail(event.target.value)}
+              autoComplete="email"
               required
               disabled={isLoading}
             />
           </div>
+
           <div className="form-group">
+            <div className="field-label-row">
+              <label htmlFor="signin-password">Password</label>
+              <button type="button" className="forgot-password" onClick={handleForgotPassword}>
+                Forgot?
+              </button>
+            </div>
             <input
+              id="signin-password"
               type="password"
-              placeholder="Password"
               value={password}
-              onChange={(e) => setPassword(e.target.value)}
+              onChange={(event) => setPassword(event.target.value)}
+              autoComplete="current-password"
               required
               disabled={isLoading}
             />
           </div>
+
           <button type="submit" disabled={isLoading} className="signin-btn">
             {isLoading ? "Signing in..." : "Sign In"}
           </button>
         </form>
+
         <p className="signup-link">
-          Don't have an account? <a href="/dashboard">Sign Up</a>
+          Do not have an account? <Link to="/signup">Sign Up</Link>
         </p>
-      </div>
+        <p className="signup-link">
+          <Link to="/">← Back to Home</Link>
+        </p>
+      </main>
     </div>
   );
 }

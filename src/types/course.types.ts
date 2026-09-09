@@ -19,7 +19,6 @@ export interface ProgramGroup {
 
 export interface TuteeRegistrationData {
     email: string;
-    password: string;
     name: string;
     idNumber: string;
     gender: string;
@@ -36,7 +35,6 @@ export interface TuteeRegistrationData {
 
 export interface TutorRegistrationData {
     email: string;
-    password: string;
     name: string;
     idNumber: string;
     gender: string;

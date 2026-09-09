@@ -1,9 +1,8 @@
 const express = require('express');
 const router = express.Router();
 const pool = require('../db');   // pg.Pool
-const bcrypt = require('bcrypt');
 
-// Register tutee with password and multiple courses
+// Register tutee with multiple courses
 router.post('/tutees', async (req, res) => {
     const client = await pool.connect();
     
@@ -12,7 +11,6 @@ router.post('/tutees', async (req, res) => {
         
         const { 
             email, 
-            password, 
             name, 
             idNumber, 
             program_level,
@@ -32,9 +30,6 @@ router.post('/tutees', async (req, res) => {
             });
         }
         
-        // Hash password
-        const hashedPassword = await bcrypt.hash(password, 10);
-        
         // Convert courses array to JSON
         const coursesJson = JSON.stringify(selected_courses);
         
@@ -51,12 +46,11 @@ router.post('/tutees', async (req, res) => {
         // Insert tutee with RETURNING id
         const result = await client.query(`
             INSERT INTO tutees 
-            (email, password, full_name, id_number, program_level, program_id, selected_courses, term, department) 
-            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+            (email, name, id_number, program_level, program_id, selected_courses, term, department) 
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
             RETURNING id
         `, [
             email, 
-            hashedPassword, 
             name, 
             idNumber, 
             program_level, 
@@ -70,7 +64,7 @@ router.post('/tutees', async (req, res) => {
 
         // Update users table
         await client.query(
-            'UPDATE users SET role = $1, full_name = $2 WHERE email = $3',
+            'UPDATE users SET role = $1, name = $2 WHERE email = $3',
             ['tutee', name, email]
         );
                         
@@ -101,7 +95,7 @@ router.get('/tutees/:id/courses', async (req, res) => {
         const { id } = req.params;
         
         const tuteeResult = await pool.query(`
-            SELECT selected_courses, program_id, full_name, department 
+            SELECT selected_courses, program_id, name, department 
             FROM tutees 
             WHERE id = $1
         `, [id]);

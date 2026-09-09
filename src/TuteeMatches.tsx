@@ -1,5 +1,6 @@
 import { useEffect, useState, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
+import "./matches.css";
 
 interface MatchCourse {
   code: string;
@@ -65,10 +66,20 @@ const TuteeMatches = () => {
 
   return (
     <div className="tutee-matches">
-      <h2>Your Tutors</h2>
+      <header className="matches-page-header">
+        <p className="matches-eyebrow">Tutee opportunities</p>
+        <h1>View Matches</h1>
+        <p>Your confirmed tutor connections in one focused view.</p>
+      </header>
+
+      <section className="matches-summary-grid" aria-label="Match summary">
+        <div><span>Total Matches</span><strong>{matches.length}</strong></div>
+        <div><span>New Matches</span><strong>{matches.length}</strong></div>
+        <div><span>Active Connections</span><strong>{matches.length}</strong></div>
+      </section>
 
       <section className="matches-section">
-        <h3>Confirmed Tutors ({matches.length})</h3>
+        <div className="matches-section-heading"><h2>Matched Tutors</h2><span>{matches.length} available</span></div>
         {matches.length === 0 ? (
           <p>You don't have any confirmed tutors yet.</p>
         ) : (
@@ -94,7 +105,7 @@ const TuteeMatches = () => {
                     className="chat-button"
                     onClick={() => goToChat(match.id)}
                   >
-                    💬 Start Chat
+                    Message Tutor
                   </button>
                 </div>
               </div>
@@ -102,6 +113,8 @@ const TuteeMatches = () => {
           </div>
         )}
       </section>
+
+      <footer className="matches-footer"><a href="#help">Help Center</a><span>·</span><a href="#support">Contact Support</a><span>·</span><a href="#study-tips">Study Tips</a></footer>
     </div>
   );
 };

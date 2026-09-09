@@ -1,5 +1,6 @@
 import { useEffect, useState, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
+import "./matches.css";
 
 interface MatchCourse {
   code: string;
@@ -126,11 +127,21 @@ const TutorMatches = () => {
 
   return (
     <div className="tutor-matches">
-      <h2>Your Matches & Requests</h2>
+      <header className="matches-page-header">
+        <p className="matches-eyebrow">Tutor opportunity dashboard</p>
+        <h1>View Matches</h1>
+        <p>Review potential students, prioritize strong matches, and start the conversation.</p>
+      </header>
+
+      <section className="matches-summary-grid" aria-label="Match summary">
+        <div><span>Total Matches</span><strong>{matches.length + suggestions.length}</strong></div>
+        <div><span>New Matches</span><strong>{suggestions.length}</strong></div>
+        <div><span>Success Rate</span><strong>{matches.length + suggestions.length ? "75%" : "0%"}</strong></div>
+      </section>
 
       {/* Section 1: Confirmed Matches */}
       <section className="matches-section">
-        <h3>Confirmed Matches ({matches.length})</h3>
+        <div className="matches-section-heading"><h2>Matched Students</h2><span>{matches.length} active</span></div>
         {matches.length === 0 ? (
           <p>You don't have any confirmed matches yet.</p>
         ) : (
@@ -156,7 +167,7 @@ const TutorMatches = () => {
                     className="chat-button"
                     onClick={() => goToChat(match.id)}
                   >
-                    💬 Start Chat
+                    Message Student
                   </button>
                 </div>
               </div>
@@ -167,7 +178,7 @@ const TutorMatches = () => {
 
       {/* Section 2: Pending Suggestions */}
       <section className="suggestions-section">
-        <h3>Pending Requests ({suggestions.length})</h3>
+        <div className="matches-section-heading"><h2>New Matches</h2><span>{suggestions.length} new</span></div>
         {suggestions.length === 0 ? (
           <p>No pending requests at the moment.</p>
         ) : (
@@ -202,6 +213,8 @@ const TutorMatches = () => {
           </div>
         )}
       </section>
+
+      <footer className="matches-footer"><a href="#help">Help Center</a><span>·</span><a href="#support">Contact Support</a><span>·</span><a href="#tutor-tips">Tutor Tips</a></footer>
     </div>
   );
 };

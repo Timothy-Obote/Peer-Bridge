@@ -28,17 +28,29 @@ const pool = new Pool({
     ssl: useSSL ? { rejectUnauthorized: false } : false,
 });
 
+let databaseReady = false;
+
 pool.on('error', (err) => {
-    console.error('Unexpected PostgreSQL pool error:', err);
+    databaseReady = false;
+    console.error('Unexpected PostgreSQL pool error:', err.message);
 });
 
-pool.connect((err, client, release) => {
-    if (err) {
-        console.error('Error connecting to PostgreSQL:', err.stack);
-    } else {
-        console.log('Connected to PostgreSQL database');
-        release();
+const initializeDatabase = async () => {
+    let retryDelay = 1000;
+    while (!databaseReady) {
+        try {
+            await pool.query('SELECT 1');
+            await pool.query('ALTER TABLE users ADD COLUMN IF NOT EXISTS public_key TEXT');
+            databaseReady = true;
+            console.log('Connected to PostgreSQL database');
+        } catch (err) {
+            await new Promise(resolve => setTimeout(resolve, retryDelay));
+            retryDelay = Math.min(retryDelay * 2, 30000);
+        }
     }
-});
+};
+
+pool.isReady = () => databaseReady;
+pool.initialize = initializeDatabase;
 
 module.exports = pool;

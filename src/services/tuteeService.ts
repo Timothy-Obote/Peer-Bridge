@@ -22,18 +22,17 @@ export const tuteeService = {
     // Register tutee (updated with all new fields)
     async registerTutee(data: {
         email: string;
-        password: string;
         name: string;
         id_number: string;
-        gender: string;               // new
-        year_of_study: string;         // new
-        gpa: string;                   // new
-        whatsapp: string;              // new
+        gender: string;
+        year_of_study: string;
+        gpa: string;
+        whatsapp: string;
         program_level: string;
         program_id: number;
         selectedCourses: number[];
         term: string;
-        term_year: string;             // new
+        term_year: string;
         department: string;
     }) {
         // Debug logs
@@ -54,7 +53,6 @@ export const tuteeService = {
 
         const payload = {
             email: data.email,
-            password: data.password,
             name: data.name,
             id_number: data.id_number,
             gender: data.gender,
@@ -69,9 +67,13 @@ export const tuteeService = {
             department: data.department
         };
 
+        const token = localStorage.getItem('token');
         const response = await fetch(`${import.meta.env.VITE_API_URL}/api/tutees`, {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: {
+                'Content-Type': 'application/json',
+                ...(token ? { Authorization: `Bearer ${token}` } : {})
+            },
             body: JSON.stringify(payload)
         });
         
