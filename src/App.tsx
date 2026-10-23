@@ -116,13 +116,13 @@ function Home() {
 
       <main className="main-bg">
         <div className="main-content">
-          <h1>Placement And Career Services</h1>
+          <h1>Peer Bridge</h1>
           <p>
             Struggling in a Unit? Worry no more... <br />
             Get Help from Your Peers and raise your GPA.
           </p>
         </div>
-        <div className="main-image"></div>
+        <img src="/students-studying-together.jpg" alt="students studying together" className="main-image" />
       </main>
 
       <motion.section
