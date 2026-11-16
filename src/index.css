@@ -1,5 +1,41 @@
 /* index.css */
 
+:root {
+  --bg-app: #f4f6f8;
+  --bg-surface: #ffffff;
+  --bg-surface-alt: #f8fafc;
+  --border-subtle: #e5e7eb;
+  --text-primary: #0f172a;
+  --text-secondary: #475569;
+  --text-muted: #94a3b8;
+  --brand-navy: #1e2a38;
+  --brand-navy-soft: #243246;
+  --brand-navy-hover: #2c3e50;
+  --accent: #2563eb;
+  --accent-soft: #dbeafe;
+  --accent-strong: #1d4ed8;
+  --success: #16a34a;
+  --success-soft: #dcfce7;
+  --warning: #d97706;
+  --warning-soft: #fef3c7;
+  --danger: #dc2626;
+  --danger-soft: #fee2e2;
+  --shadow-sm: 0 1px 2px rgba(15, 23, 42, .05);
+  --shadow-md: 0 4px 12px rgba(15, 23, 42, .06);
+  --shadow-lg: 0 12px 32px rgba(15, 23, 42, .08);
+  --radius-sm: 6px;
+  --radius-md: 10px;
+  --radius-lg: 14px;
+  --sidebar-width: 248px;
+  font-family: system-ui, Avenir, Helvetica, Arial, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+  line-height: 1.5;
+  font-weight: 400;
+  background: var(--bg-app);
+  color: var(--text-primary);
+}
+
 /* === Global box sizing === */
 *, *::before, *::after {
   box-sizing: border-box;
@@ -17,8 +53,8 @@ html, body, #root {
   text-rendering: optimizeLegibility;
   line-height: 1.5;
   font-weight: 400;
-  background-color: #ffffff; /* White background */
-  color: #002244;           /* Dark blue text */
+  background-color: var(--bg-app);
+  color: var(--text-primary);
   display: flex;
   flex-direction: column;
   overflow-x: hidden; /* prevent horizontal scrollbar that can shrink layout */
@@ -32,18 +68,18 @@ body {
 /* Links */
 a {
   font-weight: 500;
-  color: #002244;
+  color: var(--brand-navy);
   text-decoration: none;
 }
 a:hover {
-  color: #FFD700; /* yellow on hover */
+  color: var(--accent);
 }
 
 /* Headings */
 h1, h2, h3, h4, h5, h6 {
   margin: 0.5em 0;
   font-weight: 600;
-  color: #002244;
+  color: var(--text-primary);
 }
 
 /* Paragraphs */

@@ -1,6 +1,7 @@
 import React, { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { generateAndStoreKeys } from "./utils/encryption";
+import PasswordInput from "./PasswordInput";
 import "./SignIn.css";
 
 export default function SignIn() {
@@ -51,10 +52,6 @@ export default function SignIn() {
     }
   };
 
-  const handleForgotPassword = () => {
-    setErrorMessage("Password recovery is not available yet. Please contact the PeerBridge administrator.");
-  };
-
   return (
     <div className="signin-page">
       <main className="signin-container" aria-labelledby="signin-title">
@@ -80,13 +77,12 @@ export default function SignIn() {
           <div className="form-group">
             <div className="field-label-row">
               <label htmlFor="signin-password">Password</label>
-              <button type="button" className="forgot-password" onClick={handleForgotPassword}>
+              <Link className="forgot-password" to="/forgot-password">
                 Forgot?
-              </button>
+              </Link>
             </div>
-            <input
+            <PasswordInput
               id="signin-password"
-              type="password"
               value={password}
               onChange={(event) => setPassword(event.target.value)}
               autoComplete="current-password"

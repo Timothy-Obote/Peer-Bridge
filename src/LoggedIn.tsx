@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
+import PasswordInput from "./PasswordInput";
 import "./LoggedIn.css";
 
 type Role = "tutor" | "tutee";
@@ -152,9 +153,8 @@ export default function SignUp() {
 
           <div className="signup-form-group">
             <label htmlFor="signup-password">Password</label>
-            <input
+            <PasswordInput
               id="signup-password"
-              type="password"
               value={password}
               onChange={(event) => setPassword(event.target.value)}
               autoComplete="new-password"
@@ -166,9 +166,8 @@ export default function SignUp() {
 
           <div className="signup-form-group">
             <label htmlFor="signup-confirm-password">Confirm password</label>
-            <input
+            <PasswordInput
               id="signup-confirm-password"
-              type="password"
               value={confirmPassword}
               onChange={(event) => setConfirmPassword(event.target.value)}
               autoComplete="new-password"

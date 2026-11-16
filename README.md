@@ -69,13 +69,23 @@ Peer Bridge is a peer tutoring platform built with React, TypeScript, Vite, and 
    CLOUDINARY_CLOUD_NAME=your_cloud_name
    CLOUDINARY_API_KEY=your_api_key
    CLOUDINARY_API_SECRET=your_api_secret
+   SMTP_HOST=your_smtp_host
+   SMTP_PORT=587
+   SMTP_SECURE=false
+   SMTP_USER=your_smtp_username
+   SMTP_PASS=your_smtp_password
+   SMTP_FROM=PeerBridge <no-reply@example.com>
+   FRONTEND_URL=http://localhost:5173
    PORT=5001
    ```
+   SMTP settings and `FRONTEND_URL` are required for password recovery. Reset links expire after one hour and can only be used once.
 4. Start the backend server:
    cd backend
    node server.js
 
 The backend runs at `http://localhost:5001` by default.
+
+Check `http://localhost:5001/health` to verify startup. A `200` response means the API and database are ready; `503` means the API is listening but PostgreSQL is unavailable. In that case, check the backend terminal's `[db] Connection failed` message and verify `DATABASE_URL`, `DB_SSL`, and network access to the database.
 
 ## Frontend Setup
 
@@ -83,12 +93,13 @@ The backend runs at `http://localhost:5001` by default.
    ```bash
    npm install
    ```
-2. Start the Vite development server:
+2. Set `VITE_API_URL=http://localhost:5001` in the project-root `.env` file.
+3. Start the Vite development server:
    ```bash
    npm run dev
    ```
 
-The frontend runs at `http://localhost:5173`.
+The frontend runs at `http://localhost:5173`. Restart Vite after changing `.env` values.
 
 ## Docker Setup
 
@@ -111,6 +122,8 @@ docker-compose up --build
 
 - `POST /signin` — login endpoint
 - `POST /signup` — sign up new users
+- `POST /password-reset/request` — email a one-time password reset link
+- `POST /password-reset/confirm` — set a new password using a valid reset token
 - `POST /api/tutees` — register tutees
 - `POST /api/tutors` — register tutors
 - `POST /api/matching/run` — manually run matching

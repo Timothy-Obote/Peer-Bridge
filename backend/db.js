@@ -41,9 +41,18 @@ const initializeDatabase = async () => {
         try {
             await pool.query('SELECT 1');
             await pool.query('ALTER TABLE users ADD COLUMN IF NOT EXISTS public_key TEXT');
+            await pool.query(`
+                CREATE TABLE IF NOT EXISTS password_reset_tokens (
+                    email TEXT PRIMARY KEY,
+                    token_hash TEXT NOT NULL,
+                    expires_at TIMESTAMPTZ NOT NULL,
+                    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+                )
+            `);
             databaseReady = true;
             console.log('Connected to PostgreSQL database');
         } catch (err) {
+            console.error(`[db] Connection failed: ${err.message}. Retrying in ${retryDelay / 1000}s.`);
             await new Promise(resolve => setTimeout(resolve, retryDelay));
             retryDelay = Math.min(retryDelay * 2, 30000);
         }

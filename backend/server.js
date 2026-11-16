@@ -3,6 +3,8 @@ const cors = require("cors");
 const path = require('node:path');
 const fs = require('node:fs');
 const dotenv = require('dotenv');
+const crypto = require('node:crypto');
+const nodemailer = require('nodemailer');
 
 // Ensure backend .env is parsed and applied to process.env
 try {
@@ -684,6 +686,147 @@ app.post("/signin", async (req, res) => {
     } catch (error) {
         console.error("Signin error:", error);
         res.status(500).json({ success: false, message: "Internal server error" });
+    }
+});
+
+// ============ PASSWORD RECOVERY ============
+app.post("/password-reset/request", async (req, res) => {
+    const body = req.body && typeof req.body === 'object' ? req.body : {};
+    const email = typeof body.email === 'string' ? body.email.trim() : '';
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+        return res.status(400).json({ message: "Enter a valid email address." });
+    }
+
+    const { SMTP_HOST, SMTP_USER, SMTP_PASS, SMTP_FROM, FRONTEND_URL } = process.env;
+    if (!SMTP_HOST || !SMTP_USER || !SMTP_PASS || !SMTP_FROM || !FRONTEND_URL) {
+        return res.status(503).json({
+            message: "Password recovery is not configured. Please contact the administrator."
+        });
+    }
+
+    const normalizedEmail = email.toLowerCase();
+    const genericMessage = "If an account exists for that email, a reset link has been sent.";
+
+    try {
+        const accountResult = await pool.query(
+            `SELECT email FROM users WHERE LOWER(email) = $1
+             UNION
+             SELECT email FROM tutors WHERE LOWER(email) = $1
+             UNION
+             SELECT email FROM tutees WHERE LOWER(email) = $1
+             LIMIT 1`,
+            [normalizedEmail]
+        );
+
+        if (accountResult.rows.length === 0) {
+            return res.json({ message: genericMessage });
+        }
+
+        const existingReset = await pool.query(
+            `SELECT created_at
+             FROM password_reset_tokens
+             WHERE email = $1 AND created_at > NOW() - INTERVAL '1 minute'`,
+            [normalizedEmail]
+        );
+        if (existingReset.rows.length > 0) {
+            return res.json({ message: genericMessage });
+        }
+
+        const token = crypto.randomBytes(32).toString('hex');
+        const tokenHash = crypto.createHash('sha256').update(token).digest('hex');
+        await pool.query(
+            `INSERT INTO password_reset_tokens (email, token_hash, expires_at, created_at)
+             VALUES ($1, $2, NOW() + INTERVAL '1 hour', NOW())
+             ON CONFLICT (email) DO UPDATE
+             SET token_hash = EXCLUDED.token_hash,
+                 expires_at = EXCLUDED.expires_at,
+                 created_at = EXCLUDED.created_at`,
+            [normalizedEmail, tokenHash]
+        );
+
+        const resetUrl = new URL('/reset-password', FRONTEND_URL);
+        resetUrl.searchParams.set('email', normalizedEmail);
+        resetUrl.searchParams.set('token', token);
+
+        try {
+            const transporter = nodemailer.createTransport({
+                host: SMTP_HOST,
+                port: Number(process.env.SMTP_PORT || 587),
+                secure: process.env.SMTP_SECURE === 'true',
+                auth: { user: SMTP_USER, pass: SMTP_PASS }
+            });
+            await transporter.sendMail({
+                from: SMTP_FROM,
+                to: accountResult.rows[0].email,
+                subject: 'PeerBridge password reset',
+                text: `Use this one-time link to reset your PeerBridge password. It expires in one hour:\n\n${resetUrl}\n\nIf you did not request this, you can ignore this email.`
+            });
+        } catch (error) {
+            await pool.query(
+                'DELETE FROM password_reset_tokens WHERE email = $1 AND token_hash = $2',
+                [normalizedEmail, tokenHash]
+            );
+            throw error;
+        }
+
+        return res.json({ message: genericMessage });
+    } catch (error) {
+        console.error("Password reset request error:", error);
+        return res.status(500).json({ message: "Could not send a reset email. Please try again later." });
+    }
+});
+
+app.post("/password-reset/confirm", async (req, res) => {
+    const body = req.body && typeof req.body === 'object' ? req.body : {};
+    const email = typeof body.email === 'string' ? body.email.trim().toLowerCase() : '';
+    const { token, password } = body;
+    if (!email || typeof token !== 'string' || !token || typeof password !== 'string' || password.length < 6) {
+        return res.status(400).json({
+            message: "A valid email, reset token, and password of at least 6 characters are required."
+        });
+    }
+
+    const client = await pool.connect();
+    try {
+        await client.query('BEGIN');
+        const hashedPassword = await bcrypt.hash(password, 10);
+        const tokenHash = crypto.createHash('sha256').update(token).digest('hex');
+
+        const resetResult = await client.query(
+            `DELETE FROM password_reset_tokens
+             WHERE email = $1 AND token_hash = $2 AND expires_at > NOW()
+             RETURNING email`,
+            [email, tokenHash]
+        );
+        if (resetResult.rows.length === 0) {
+            await client.query('ROLLBACK');
+            return res.status(400).json({ message: "This reset link is invalid or has expired. Request a new one." });
+        }
+
+        const userUpdate = await client.query(
+            'UPDATE users SET password = $1 WHERE LOWER(email) = $2',
+            [hashedPassword, email]
+        );
+        const tutorUpdate = await client.query(
+            'UPDATE tutors SET password = $1 WHERE LOWER(email) = $2',
+            [hashedPassword, email]
+        );
+        const tuteeUpdate = await client.query(
+            'UPDATE tutees SET password = $1 WHERE LOWER(email) = $2',
+            [hashedPassword, email]
+        );
+        if (userUpdate.rowCount + tutorUpdate.rowCount + tuteeUpdate.rowCount === 0) {
+            throw new Error("Reset account no longer exists");
+        }
+
+        await client.query('COMMIT');
+        return res.json({ message: "Password updated successfully." });
+    } catch (error) {
+        await client.query('ROLLBACK');
+        console.error("Password reset confirmation error:", error);
+        return res.status(500).json({ message: "Could not reset your password. Please try again." });
+    } finally {
+        client.release();
     }
 });
 
@@ -1680,21 +1823,26 @@ app.use((err, req, res, next) => {
 
 // ============ START SERVER =============
 const PORT = process.env.PORT || 5001;
-const startServer = async () => {
-  await pool.initialize();
+const startServer = () => {
   server.listen(PORT, '0.0.0.0', () => {
     console.log('='.repeat(60));
     console.log('Server Status: RUNNING');
     console.log(`Backend Server:   http://localhost:${PORT}`);
     console.log(`Frontend (Vite):  http://localhost:5173`);
+    console.log('Database Status:  connecting; check /health');
     console.log('='.repeat(60));
     console.log('Admin Login:  configured in application settings');
     console.log('='.repeat(60));
   });
+
+  pool.initialize().catch((err) => {
+    console.error('[db] Database initialization stopped:', err.message);
+  });
 };
 
-startServer().catch((err) => {
+server.on('error', (err) => {
   console.error('Backend startup failed:', err.message);
   process.exitCode = 1;
 });
 
+startServer();

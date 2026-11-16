@@ -1,5 +1,7 @@
 import "./App.css";
 import SignIn from "./SignInForm";
+import ForgotPassword from "./ForgotPassword";
+import ResetPassword from "./ResetPassword";
 import LoggedIn from "./LoggedIn";
 import Tutor from "./tutor";
 import Tutee from "./tutee";
@@ -122,7 +124,11 @@ function Home() {
             Get Help from Your Peers and raise your GPA.
           </p>
         </div>
-        <img src="/students-studying-together.jpg" alt="students studying together" className="main-image" />
+        <div
+          role="img"
+          aria-label="USIU-Africa Office of Placement and Career Services"
+          className="main-image"
+        />
       </main>
 
       <motion.section
@@ -244,6 +250,8 @@ export default function App() {
         <Route path="/" element={<Home />} />
         <Route path="/signin" element={<SignIn />} />
         <Route path="/signup" element={<LoggedIn />} />
+        <Route path="/forgot-password" element={<ForgotPassword />} />
+        <Route path="/reset-password" element={<ResetPassword />} />
         <Route path="/dashboard" element={<Navigate to="/signup" replace />} />
 
         {/* Registration forms – public */}

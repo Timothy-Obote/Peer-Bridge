@@ -1,9 +1,9 @@
 /* Global */
 body {
   margin: 0;
-  font-family: Arial, sans-serif;
-  background-color: white;
-  color: #002244; /* dark blue */
+  font-family: system-ui, Avenir, Helvetica, Arial, sans-serif;
+  background-color: var(--bg-app);
+  color: var(--text-primary);
 }
 
 .app-container {
@@ -17,16 +17,16 @@ body {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  background: #002244; /* blue */
-  color: white;
+  background: var(--brand-navy);
+  color: var(--bg-surface);
   padding: 0.75rem 1.5rem;
   flex-shrink: 0; /* Prevent shrinking */
 }
 
-.logo {
+.header .logo {
   font-size: 2rem; /* Increased from 1.5rem */
   font-weight: bold;
-  color: #FFD700; /* yellow */
+  color: var(--accent-soft);
   flex: 1;
   display: flex;
   align-items: center; /* Vertically center */
@@ -40,15 +40,15 @@ body {
   flex: 2;
 }
 
-.main-nav a{
-  color: #FFD700; /* yellow */
+.header .main-nav a{
+  color: var(--accent-soft);
   text-decoration: none;
   font-weight: 500;
   transition: color 0.2s;
 }
 
-.main-nav a:hover {
-  color: #fff;
+.header .main-nav a:hover {
+  color: var(--bg-surface);
 }
 
 .auth-buttons {
@@ -68,14 +68,14 @@ body {
 }
 
 .auth-buttons .sign-in {
-  background: #FFD700; /* yellow */
-  color: #002244; /* blue text */
+  background: var(--accent);
+  color: var(--bg-surface);
 }
 
 .auth-buttons .sign-up {
-  background: white;
-  color: #002244; /* blue */
-  border: 2px solid #FFD700;
+  background: var(--bg-surface);
+  color: var(--brand-navy);
+  border: 2px solid var(--border-subtle);
 }
 
 .success {
@@ -151,11 +151,19 @@ body {
 /* Add to App.css */
 
 .main-content {
-  background: #002244; /* Deep blue */
-  color: #e90303;
-  padding: 2.5rem 2rem;
-  border-radius: 16px;
-  box-shadow: 0 4px 24px rgba(0,0,0,0.08);
+  box-sizing: border-box;
+  min-height: 400px;
+  flex: 1;
+  padding: 28px 36px;
+  overflow-y: auto;
+  animation: fadeIn .25s ease-in-out;
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+  background-color: var(--bg-surface-alt);
+  color: var(--text-primary);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-lg);
   margin-left: 2rem;
   margin-right: 2rem;
   z-index: 2;
@@ -163,7 +171,7 @@ body {
 }
 
 .main-content h1 {
-  color: #002244; /* Blue */
+  color: var(--brand-navy);
   font-size: 2.2rem;
   margin-bottom: 1rem;
   font-weight: bold;
@@ -172,7 +180,7 @@ body {
 }
 
 .main-content p {
-  color:#002244;
+  color: var(--text-secondary);
   font-size: 1.15rem;
   line-height: 1.6;
   margin: 0;
@@ -182,13 +190,19 @@ body {
   width: 45%;
   min-width: 270px;
   height: 450px;
-  background-image: url('/pacs_logo.png');
-  background-size: cover;
+  flex: 0 1 45%;
+  background-image: url("/pacs_logo.png");
+  background-size: contain;
   background-position: center;
   background-repeat: no-repeat;
-  border-radius: 12px;
+  border-radius: var(--radius-md);
   margin-right: 2rem;
-  box-shadow: 0 4px 16px rgba(0,0,0,0.10);
+  box-shadow: var(--shadow-md);
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
 }
 
 /* Hover Preview Box (beneath header on nav hover) */
@@ -331,21 +345,27 @@ html {
   }
 
   .main-bg {
+    width: 100%;
     flex-direction: column;
     align-items: stretch;
     padding: 1rem 0;
   }
   .main-content {
-    padding-left: 1rem;
-    padding-right: 1rem;
-    margin-bottom: 1rem;
+    width: calc(100% - 2rem);
+    flex: none;
+    min-height: 0;
+    padding: 28px 20px;
+    margin: 0 1rem 1rem;
     font-size: 1.2rem;
   }
   .main-image {
-    width: 100%;
+    width: calc(100% - 2rem);
+    max-width: 450px;
     min-width: 0;
     height: 220px;
-    margin: 0 0 1rem 0;
-    border-radius: 10px;
+    flex: none;
+    align-self: center;
+    background-size: contain;
+    margin: 0 1rem 1rem;
   }
 }

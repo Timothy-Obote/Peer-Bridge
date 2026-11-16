@@ -70,6 +70,7 @@
   background: transparent;
   font-size: 0.85rem;
   font-weight: 650;
+  text-decoration: none;
 }
 
 .forgot-password:hover {
@@ -141,6 +142,32 @@
 .signup-link a:hover {
   color: #b42318;
   text-decoration: underline;
+}
+
+.recovery-intro {
+  margin: -0.75rem 0 1.5rem;
+  color: #4a5568;
+  font-size: 0.92rem;
+  line-height: 1.5;
+  text-align: center;
+}
+
+.recovery-success,
+.recovery-token-error {
+  margin: 0 0 1.25rem;
+  padding: 0.75rem 1rem;
+  color: #1b5e20;
+  background: #e8f5e9;
+  border-left: 4px solid #1b5e20;
+  border-radius: 12px;
+  font-size: 0.9rem;
+}
+
+.recovery-token-error {
+  margin: 1rem 0 0;
+  color: #c62828;
+  background: #ffebee;
+  border-color: #c62828;
 }
 
 @media (max-width: 480px) {

@@ -145,7 +145,6 @@ const AdminOverview = () => {
         <div className="status-greeting">
           <h1>{greeting}, Admin</h1>
           <p className="status-log">
-            <span aria-hidden="true">📝</span>
             <span>{formatLastMatch(summary.last_match_at)}</span>
           </p>
         </div>
@@ -164,7 +163,6 @@ const AdminOverview = () => {
           disabled={matching}
           aria-label="Run matching algorithm now"
         >
-          <span aria-hidden="true">🔄</span>
           <span>{matching ? "Running Matching…" : "Run Matching Now"}</span>
         </button>
       </section>
@@ -177,7 +175,6 @@ const AdminOverview = () => {
         <div className="kpi-card">
           <div className="kpi-head">
             <span className="kpi-label">Total Users</span>
-            <span className="kpi-icon" aria-hidden="true">👥</span>
           </div>
           <span className="kpi-value">{summary.total_users}</span>
           <span className="kpi-growth positive">
@@ -189,7 +186,6 @@ const AdminOverview = () => {
         <div className="kpi-card">
           <div className="kpi-head">
             <span className="kpi-label">Tutors</span>
-            <span className="kpi-icon" aria-hidden="true">👨‍🏫</span>
           </div>
           <span className="kpi-value">{summary.tutors}</span>
           <span className="kpi-growth positive">
@@ -201,7 +197,6 @@ const AdminOverview = () => {
         <div className="kpi-card">
           <div className="kpi-head">
             <span className="kpi-label">Tutees</span>
-            <span className="kpi-icon" aria-hidden="true">🧑‍🎓</span>
           </div>
           <span className="kpi-value">{summary.tutees}</span>
           <span className="kpi-growth positive">
@@ -213,7 +208,6 @@ const AdminOverview = () => {
         <div className="kpi-card">
           <div className="kpi-head">
             <span className="kpi-label">Pending Matches</span>
-            <span className="kpi-icon" aria-hidden="true">🔗</span>
           </div>
           <span className="kpi-value">{summary.pending_matches}</span>
           <span className="kpi-growth neutral">
@@ -287,15 +281,12 @@ const AdminOverview = () => {
       {/* Section 5: Utility Footer */}
       <footer className="utility-footer">
         <Link to="/admin-dashboard/reports" className="utility-link">
-          <span aria-hidden="true">📈</span>
           <span>System Logs</span>
         </Link>
         <Link to="/admin-dashboard/reports" className="utility-link">
-          <span aria-hidden="true">⚡</span>
           <span>Performance</span>
         </Link>
         <Link to="/admin-dashboard/settings" className="utility-link">
-          <span aria-hidden="true">❓</span>
           <span>Documentation</span>
         </Link>
       </footer>
