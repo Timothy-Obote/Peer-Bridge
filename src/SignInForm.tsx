@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { Link, useLocation, useNavigate } from "react-router-dom";
 import { generateAndStoreKeys } from "./utils/encryption";
 import PasswordInput from "./PasswordInput";
 import "./SignIn.css";
@@ -8,7 +8,9 @@ export default function SignIn() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [isLoading, setIsLoading] = useState(false);
-  const [errorMessage, setErrorMessage] = useState("");
+  const location = useLocation();
+  const accessMessage = (location.state as { accessMessage?: string } | null)?.accessMessage || "";
+  const [errorMessage, setErrorMessage] = useState(accessMessage);
   const navigate = useNavigate();
 
   const handleSubmit = async (event: React.FormEvent) => {

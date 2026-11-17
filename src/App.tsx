@@ -182,7 +182,71 @@ function Home() {
   );
 }
 
-// ---------------- PROTECTED ROUTE COMPONENT (unchanged) ----------------
+function AccountAccessGuard({ children }: { children: React.ReactNode }) {
+  const navigate = useNavigate();
+  const token = localStorage.getItem('token') || '';
+  const [accessState, setAccessState] = useState<'checking' | 'allowed' | 'error'>('checking');
+  const [errorMessage, setErrorMessage] = useState('');
+
+  useEffect(() => {
+    let active = true;
+    let checking = false;
+
+    const verifyAccess = async () => {
+      if (checking) return;
+      checking = true;
+      try {
+        const response = await fetch(`${import.meta.env.VITE_API_URL}/api/auth/session`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        const data = await response.json().catch(() => ({}));
+
+        if (response.status === 401 || response.status === 403) {
+          if (!active) return;
+          localStorage.removeItem('user');
+          localStorage.removeItem('token');
+          navigate('/signin', {
+            replace: true,
+            state: { accessMessage: data.error || 'Please sign in again.' },
+          });
+          return;
+        }
+        if (!response.ok) {
+          throw new Error(data.error || 'Unable to verify account access.');
+        }
+
+        if (active) {
+          setAccessState('allowed');
+          setErrorMessage('');
+        }
+      } catch (error) {
+        if (active) {
+          setAccessState('error');
+          setErrorMessage(error instanceof Error ? error.message : 'Unable to verify account access.');
+        }
+      } finally {
+        checking = false;
+      }
+    };
+
+    verifyAccess();
+    const intervalId = window.setInterval(verifyAccess, 30000);
+    return () => {
+      active = false;
+      window.clearInterval(intervalId);
+    };
+  }, [navigate, token]);
+
+  if (accessState === 'checking') {
+    return <div className="loading-screen" role="status">Verifying account access...</div>;
+  }
+  if (accessState === 'error') {
+    return <div className="error-message" role="alert">{errorMessage}</div>;
+  }
+  return <>{children}</>;
+}
+
+// ---------------- PROTECTED ROUTE COMPONENT ----------------
 interface ProtectedRouteProps {
   children: React.ReactNode;
   allowedRoles?: string[];
@@ -191,7 +255,7 @@ interface ProtectedRouteProps {
 function ProtectedRoute({ children, allowedRoles }: ProtectedRouteProps) {
   const user = localStorage.getItem('user');
   
-  if (!user) {
+  if (!user || !localStorage.getItem('token')) {
     return <Navigate to="/signin" replace />;
   }
   
@@ -205,7 +269,7 @@ function ProtectedRoute({ children, allowedRoles }: ProtectedRouteProps) {
       return <Navigate to="/dashboard" replace />;
     }
     
-    return <>{children}</>;
+    return <AccountAccessGuard>{children}</AccountAccessGuard>;
   } catch {
     localStorage.removeItem('user');
     return <Navigate to="/signin" replace />;
@@ -228,7 +292,7 @@ function RegistrationRoute({ children, role }: RegistrationRouteProps) {
     const userData = JSON.parse(user);
     // Allow access if user already has this role, or is pending with matching intendedRole
     if (userData.role === role || (userData.role === 'pending' && userData.intendedRole === role)) {
-      return <>{children}</>;
+      return <AccountAccessGuard>{children}</AccountAccessGuard>;
     }
 
     if (userData.role === 'tutor') return <Navigate to="/tutor-dashboard" replace />;
@@ -374,7 +438,14 @@ export default function App() {
             </ProtectedRoute>
           }
         />
-        <Route path="/chat/:matchId" element={<ChatInterface />} />
+        <Route
+          path="/chat/:matchId"
+          element={
+            <ProtectedRoute allowedRoles={['tutor', 'tutee', 'admin']}>
+              <ChatInterface />
+            </ProtectedRoute>
+          }
+        />
 
         {/* Catch all */}
         <Route path="*" element={<Navigate to="/" replace />} />

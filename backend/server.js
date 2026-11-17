@@ -37,16 +37,48 @@ const tutorRoutes = require('./routes/tutors');
 const app = express();
 
 // ============ AUTHENTICATION MIDDLEWARE ============
+const accountBlockedMessage = 'Your account is paused or flagged. Please contact an administrator.';
+
+const getAccountAccessStatus = async (email) => {
+  const { rows } = await pool.query(
+    `SELECT is_paused, is_flagged
+     FROM account_access_controls
+     WHERE email = LOWER($1)`,
+    [email]
+  );
+  return rows[0] || { is_paused: false, is_flagged: false };
+};
+
 const authenticateToken = (req, res, next) => {
   const authHeader = req.headers['authorization'];
   const token = authHeader && authHeader.split(' ')[1];
   if (!token) return res.status(401).json({ error: 'Access denied' });
 
-  jwt.verify(token, process.env.JWT_SECRET, (err, user) => {
+  jwt.verify(token, process.env.JWT_SECRET, async (err, user) => {
     if (err) return res.status(403).json({ error: 'Invalid token' });
+
+    if (user.role !== 'admin' && typeof user.email === 'string') {
+      try {
+        const access = await getAccountAccessStatus(user.email);
+        if (access.is_paused || access.is_flagged) {
+          return res.status(403).json({ error: accountBlockedMessage, code: 'ACCOUNT_BLOCKED' });
+        }
+      } catch (error) {
+        console.error('Account access check failed:', error);
+        return res.status(503).json({ error: 'Unable to verify account access' });
+      }
+    }
+
     req.user = user;
     next();
   });
+};
+
+const requireAdmin = (req, res, next) => {
+  if (req.user?.role !== 'admin') {
+    return res.status(403).json({ message: 'Admin access required' });
+  }
+  next();
 };
 
 const userCanAccessMatch = (user, match) => {
@@ -141,6 +173,10 @@ app.use(cors({
     ],
     credentials: true
 }));
+
+app.get('/api/auth/session', authenticateToken, (req, res) => {
+  res.json({ user: req.user });
+});
 
 // Request logging
 app.use((req, res, next) => {
@@ -262,9 +298,21 @@ io.use((socket, next) => {
     return next(new Error('Authentication required'));
   }
 
-  jwt.verify(token, process.env.JWT_SECRET, (err, user) => {
+  jwt.verify(token, process.env.JWT_SECRET, async (err, user) => {
     if (err) {
       return next(new Error('Invalid token'));
+    }
+
+    if (user.role !== 'admin' && typeof user.email === 'string') {
+      try {
+        const access = await getAccountAccessStatus(user.email);
+        if (access.is_paused || access.is_flagged) {
+          return next(new Error('ACCOUNT_BLOCKED'));
+        }
+      } catch (error) {
+        console.error('Socket account access check failed:', error);
+        return next(new Error('Unable to verify account access'));
+      }
     }
 
     socket.user = user;
@@ -439,6 +487,8 @@ io.on("connection", (socket) => {
 
 // ============ ROUTES ============
 app.use('/api', programRoutes);
+app.use('/tutees', authenticateToken);
+app.use('/tutors', authenticateToken);
 app.use('/', tuteeRoutes);
 app.use('/', tutorRoutes);
 
@@ -507,33 +557,58 @@ app.get('/test-db', async (req, res) => {
 });
 
 // ============ ADMIN OVERVIEW ============
-app.get("/admin/overview", async (req, res) => {
+app.get("/admin/overview", authenticateToken, requireAdmin, async (req, res) => {
     try {
-        const users = await pool.query(`
-            SELECT u.id, u.email, u.name, u.role, u.created_at
-            FROM users u
-            ORDER BY u.created_at DESC
-        `);
-
         const usersWithCoursesResult = await pool.query(`
-          SELECT u.id, u.email, u.name, u.role, u.created_at,
-               CASE
-                 WHEN u.role = 'tutor' THEN COALESCE((
-                   SELECT string_agg(c.code || ' - ' || c.name, ', ' ORDER BY c.code)
-                   FROM tutor_courses tc
-                   JOIN courses c ON tc.course_id = c.id
-                   WHERE tc.tutor_id = u.id
-                 ), 'None')
-                 WHEN u.role = 'tutee' THEN COALESCE((
-                   SELECT string_agg(c.code || ' - ' || c.name, ', ' ORDER BY c.code)
-                   FROM tutee_courses tc
-                   JOIN courses c ON tc.course_id = c.id
-                   WHERE tc.tutee_id = u.id
-                 ), 'None')
-                 ELSE 'None'
-               END AS units
+          SELECT
+            u.id,
+            COALESCE(tutor_profile.email, tutee_profile.email, u.email) AS email,
+            COALESCE(tutor_profile.name, tutee_profile.name, u.name) AS name,
+            u.role,
+            COALESCE(tutor_profile.created_at, tutee_profile.created_at, u.created_at) AS created_at,
+            COALESCE(tutor_profile.department, tutee_profile.department) AS department,
+            COALESCE(tutor_profile.term, tutee_profile.term) AS term,
+            COALESCE(tutor_profile.term_year, tutee_profile.term_year) AS term_year,
+            COALESCE(tutor_profile.gender, tutee_profile.gender) AS gender,
+            COALESCE(tutor_profile.year_of_study, tutee_profile.year_of_study) AS year_of_study,
+            COALESCE(tutor_profile.gpa, tutee_profile.gpa) AS gpa,
+            COALESCE(tutor_profile.whatsapp, tutee_profile.whatsapp) AS whatsapp,
+            COALESCE(tutor_units.units, tutee_units.units, 'None') AS units,
+            COALESCE(access.is_paused, FALSE) AS is_paused,
+            COALESCE(access.is_flagged, FALSE) AS is_flagged
           FROM users u
-          ORDER BY u.created_at DESC
+          LEFT JOIN account_access_controls access ON access.email = LOWER(u.email)
+          LEFT JOIN LATERAL (
+            SELECT email, name, created_at, department, term, term_year,
+                   gender, year_of_study, gpa, whatsapp, selected_courses
+            FROM tutors
+            WHERE u.role = 'tutor' AND LOWER(email) = LOWER(u.email)
+            ORDER BY created_at DESC NULLS LAST, id DESC
+            LIMIT 1
+          ) tutor_profile ON TRUE
+          LEFT JOIN LATERAL (
+            SELECT email, name, created_at, department, term, term_year,
+                   gender, year_of_study, gpa, whatsapp, selected_courses
+            FROM tutees
+            WHERE u.role = 'tutee' AND LOWER(email) = LOWER(u.email)
+            ORDER BY created_at DESC NULLS LAST, id DESC
+            LIMIT 1
+          ) tutee_profile ON TRUE
+          LEFT JOIN LATERAL (
+            SELECT STRING_AGG(c.course_code || ' - ' || c.course_name, ', ' ORDER BY c.course_code) AS units
+            FROM jsonb_array_elements_text(
+              COALESCE(NULLIF(tutor_profile.selected_courses::text, '')::jsonb, '[]'::jsonb)
+            ) AS selected(course_id)
+            JOIN courses_1 c ON c.id = selected.course_id::int
+          ) tutor_units ON TRUE
+          LEFT JOIN LATERAL (
+            SELECT STRING_AGG(c.course_code || ' - ' || c.course_name, ', ' ORDER BY c.course_code) AS units
+            FROM jsonb_array_elements_text(
+              COALESCE(NULLIF(tutee_profile.selected_courses::text, '')::jsonb, '[]'::jsonb)
+            ) AS selected(course_id)
+            JOIN courses_1 c ON c.id = selected.course_id::int
+          ) tutee_units ON TRUE
+          ORDER BY COALESCE(tutor_profile.created_at, tutee_profile.created_at, u.created_at) DESC
         `);
         const usersWithCourses = usersWithCoursesResult.rows;
 
@@ -608,65 +683,133 @@ app.get("/admin/overview", async (req, res) => {
     }
 });
 
+app.put('/admin/users/:id/access', authenticateToken, requireAdmin, async (req, res) => {
+    const userId = Number(req.params.id);
+    const { action } = req.body || {};
+    if (!Number.isSafeInteger(userId) || userId < 1) {
+        return res.status(400).json({ message: 'Invalid user ID' });
+    }
+    if (!['pause', 'flag', 'resume'].includes(action)) {
+        return res.status(400).json({ message: 'Action must be pause, flag, or resume' });
+    }
+
+    try {
+        const userResult = await pool.query(
+            `SELECT id, email, role FROM users WHERE id = $1 AND role IN ('tutor', 'tutee')`,
+            [userId]
+        );
+        const account = userResult.rows[0];
+        if (!account) {
+            return res.status(404).json({ message: 'Tutor or tutee account not found' });
+        }
+
+        const email = account.email.trim().toLowerCase();
+        const { rows } = await pool.query(
+            `INSERT INTO account_access_controls (email, is_paused, is_flagged)
+             VALUES ($1, $2, $3)
+             ON CONFLICT (email) DO UPDATE SET
+               is_paused = CASE
+                 WHEN $4 = 'pause' THEN TRUE
+                 WHEN $4 = 'resume' THEN FALSE
+                 ELSE account_access_controls.is_paused
+               END,
+               is_flagged = CASE
+                 WHEN $4 = 'flag' THEN TRUE
+                 WHEN $4 = 'resume' THEN FALSE
+                 ELSE account_access_controls.is_flagged
+               END,
+               updated_at = NOW()
+             RETURNING is_paused, is_flagged`,
+            [email, action === 'pause', action === 'flag', action]
+        );
+
+        const access = rows[0];
+        if (access.is_paused || access.is_flagged) {
+            for (const socket of io.sockets.sockets.values()) {
+                if (socket.user?.email?.toLowerCase() === email) {
+                    socket.emit('account-access-revoked', { message: accountBlockedMessage });
+                    socket.disconnect(true);
+                }
+            }
+        }
+
+        res.json({ id: account.id, email, ...access });
+    } catch (error) {
+        console.error('Admin account access update error:', error);
+        res.status(500).json({ message: 'Unable to update account access' });
+    }
+});
+
 // ============ SIGNIN ============
 app.post("/signin", async (req, res) => {
-    const { email, password } = req.body;
+    const body = req.body && typeof req.body === 'object' ? req.body : {};
+    const email = typeof body.email === 'string' ? body.email.trim() : '';
+    const password = typeof body.password === 'string' ? body.password : '';
     if (!email || !password) {
         return res.status(400).json({ success: false, message: "Email and password required" });
     }
 
-    if (email === "admin@usiu.ac.ke" && password === "PACS1234") {
-        const token = jwt.sign(
-            { id: 0, email, role: "admin" },
-            process.env.JWT_SECRET,
-            { expiresIn: "1d" }
-        );
-        return res.status(200).json({
-            success: true,
-            message: "Admin login successful",
-            user: { id: 0, name: "Administrator", email, role: "admin" },
-            token
-        });
-    }
-
+    const normalizedEmail = email.toLowerCase();
     try {
+        const configuredAdminEmail = (process.env.ADMIN_EMAIL || '').trim().toLowerCase();
+        if (configuredAdminEmail && normalizedEmail === configuredAdminEmail) {
+            const configuredAdminPassword = process.env.ADMIN_PASSWORD;
+            if (!configuredAdminPassword) {
+                return res.status(503).json({
+                    success: false,
+                    message: "Administrator sign-in is not configured. Set ADMIN_PASSWORD in the backend environment."
+                });
+            }
+
+            const suppliedPassword = Buffer.from(password, 'utf8');
+            const expectedPassword = Buffer.from(configuredAdminPassword, 'utf8');
+            const passwordMatches = suppliedPassword.length === expectedPassword.length
+                && crypto.timingSafeEqual(suppliedPassword, expectedPassword);
+            if (!passwordMatches) {
+                return res.status(401).json({ success: false, message: "Invalid email or password" });
+            }
+
+            const token = jwt.sign(
+                { id: 0, email: configuredAdminEmail, role: "admin" },
+                process.env.JWT_SECRET,
+                { expiresIn: "1d" }
+            );
+            return res.status(200).json({
+                success: true,
+                message: "Admin login successful",
+                user: { id: 0, name: "Administrator", email: configuredAdminEmail, role: "admin" },
+                token
+            });
+        }
+
         let userRecord = null;
 
         const usersResult = await pool.query(
             `SELECT id, email, password, name, role
              FROM users
-             WHERE email = $1`,
-            [email]
+             WHERE LOWER(email) = $1`,
+            [normalizedEmail]
         );
         userRecord = usersResult.rows[0] || null;
 
         if (!userRecord) {
-            const tutorsResult = await pool.query(
-                `SELECT id, email, password, name, role
-                 FROM tutors
-                 WHERE email = $1`,
-                [email]
-            );
-            userRecord = tutorsResult.rows[0] || null;
-        }
-
-        if (!userRecord) {
-            const tuteesResult = await pool.query(
-                `SELECT id, email, password, name, role
-                 FROM tutees
-                 WHERE email = $1`,
-                [email]
-            );
-            userRecord = tuteesResult.rows[0] || null;
-        }
-
-        if (!userRecord) {
+            if (!configuredAdminEmail && normalizedEmail === 'admin@usiu.ac.ke') {
+                return res.status(503).json({
+                    success: false,
+                    message: "Administrator sign-in is not configured. Set ADMIN_EMAIL and ADMIN_PASSWORD in the backend environment."
+                });
+            }
             return res.status(401).json({ success: false, message: "Invalid email or password" });
         }
 
         const passwordMatch = await bcrypt.compare(password, userRecord.password);
         if (!passwordMatch) {
             return res.status(401).json({ success: false, message: "Invalid email or password" });
+        }
+
+        const access = await getAccountAccessStatus(userRecord.email);
+        if (access.is_paused || access.is_flagged) {
+            return res.status(403).json({ success: false, message: accountBlockedMessage });
         }
 
         const { password: _, ...userWithoutPassword } = userRecord;
@@ -1831,7 +1974,9 @@ const startServer = () => {
     console.log(`Frontend (Vite):  http://localhost:5173`);
     console.log('Database Status:  connecting; check /health');
     console.log('='.repeat(60));
-    console.log('Admin Login:  configured in application settings');
+    console.log(
+      `Environment admin login: ${process.env.ADMIN_EMAIL && process.env.ADMIN_PASSWORD ? 'configured' : 'not configured'}`
+    );
     console.log('='.repeat(60));
   });
 

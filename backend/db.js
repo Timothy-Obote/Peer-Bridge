@@ -49,6 +49,14 @@ const initializeDatabase = async () => {
                     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
                 )
             `);
+            await pool.query(`
+                CREATE TABLE IF NOT EXISTS account_access_controls (
+                    email TEXT PRIMARY KEY,
+                    is_paused BOOLEAN NOT NULL DEFAULT FALSE,
+                    is_flagged BOOLEAN NOT NULL DEFAULT FALSE,
+                    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+                )
+            `);
             databaseReady = true;
             console.log('Connected to PostgreSQL database');
         } catch (err) {

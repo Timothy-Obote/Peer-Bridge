@@ -712,3 +712,76 @@
     font-size: 0.88rem;
   }
 }
+
+.user-section {
+  min-width: 0;
+}
+
+.user-section .table-container {
+  max-width: 100%;
+  overflow-x: auto;
+}
+
+.user-section .user-table {
+  min-width: 1180px;
+}
+
+.account-status {
+  display: inline-block;
+  padding: 4px 9px;
+  border-radius: 999px;
+  font-size: 0.78rem;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.account-status.active {
+  color: var(--success);
+  background: var(--success-soft);
+}
+
+.account-status.blocked {
+  color: var(--danger);
+  background: var(--danger-soft);
+}
+
+.account-actions {
+  display: flex;
+  gap: 6px;
+}
+
+.account-action {
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm);
+  padding: 6px 9px;
+  font: inherit;
+  font-size: 0.8rem;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.account-action:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.account-action:disabled {
+  cursor: wait;
+  opacity: 0.65;
+}
+
+.account-action.pause {
+  color: #92400e;
+  background: var(--warning-soft);
+}
+
+.account-action.flag {
+  color: #991b1b;
+  background: var(--danger-soft);
+}
+
+.account-action.resume {
+  color: #166534;
+  background: var(--success-soft);
+}

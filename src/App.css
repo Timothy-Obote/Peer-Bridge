@@ -26,7 +26,7 @@ body {
 .header .logo {
   font-size: 2rem; /* Increased from 1.5rem */
   font-weight: bold;
-  color: var(--accent-soft);
+  color: #ffd700;
   flex: 1;
   display: flex;
   align-items: center; /* Vertically center */
@@ -41,14 +41,14 @@ body {
 }
 
 .header .main-nav a{
-  color: var(--accent-soft);
+  color: #ffd700;
   text-decoration: none;
   font-weight: 500;
   transition: color 0.2s;
 }
 
 .header .main-nav a:hover {
-  color: var(--bg-surface);
+  color: #f0c63a;
 }
 
 .auth-buttons {
@@ -68,14 +68,29 @@ body {
 }
 
 .auth-buttons .sign-in {
-  background: var(--accent);
-  color: var(--bg-surface);
+  background: #ffd700;
+  color: var(--brand-navy);
+  border: 2px solid #ffd700;
 }
 
 .auth-buttons .sign-up {
-  background: var(--bg-surface);
+  background: #fff;
   color: var(--brand-navy);
-  border: 2px solid var(--border-subtle);
+  border: 2px solid #ffd700;
+}
+
+.auth-buttons .sign-in:hover {
+  background: #f0c63a;
+  border-color: #f0c63a;
+}
+
+.auth-buttons .sign-up:hover {
+  background: rgba(255, 215, 0, 0.1);
+}
+
+.auth-buttons button:focus-visible {
+  outline: 2px solid #ffd700;
+  outline-offset: 3px;
 }
 
 .success {

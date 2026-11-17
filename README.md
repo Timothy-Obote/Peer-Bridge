@@ -79,6 +79,7 @@ Peer Bridge is a peer tutoring platform built with React, TypeScript, Vite, and 
    PORT=5001
    ```
    SMTP settings and `FRONTEND_URL` are required for password recovery. Reset links expire after one hour and can only be used once.
+   Keep administrator credentials in the backend environment and out of source control.
 4. Start the backend server:
    cd backend
    node server.js
