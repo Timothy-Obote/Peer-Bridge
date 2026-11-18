@@ -179,7 +179,7 @@ const AdminUsers = () => {
               <th>Year</th>
               <th>GPA</th>
               <th>WhatsApp</th>
-              <th>Units</th>
+              <th>Selected Courses</th>
               <th>Created At</th>
               <th>Account Status</th>
               <th>Actions</th>
@@ -205,7 +205,7 @@ const AdminUsers = () => {
               <th>Year</th>
               <th>GPA</th>
               <th>WhatsApp</th>
-              <th>Units</th>
+              <th>Selected Courses</th>
               <th>Created At</th>
               <th>Account Status</th>
               <th>Actions</th>

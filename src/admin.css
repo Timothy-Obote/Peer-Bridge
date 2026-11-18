@@ -723,7 +723,105 @@
 }
 
 .user-section .user-table {
-  min-width: 1180px;
+  width: 100%;
+  min-width: 1650px;
+  table-layout: fixed;
+  border-collapse: collapse;
+  font-size: 0.88rem;
+}
+
+.user-section .user-table th,
+.user-section .user-table td {
+  padding: 12px 14px;
+  border-bottom: 1px solid var(--border-subtle);
+  text-align: left;
+  vertical-align: top;
+  line-height: 1.45;
+  overflow-wrap: anywhere;
+}
+
+.user-section .user-table th {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  background: var(--bg-surface-alt);
+  color: var(--text-secondary);
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+}
+
+.user-section .user-table tbody tr:nth-child(even) {
+  background: var(--bg-surface-alt);
+}
+
+.user-section .user-table tbody tr:hover {
+  background: var(--accent-soft);
+}
+
+.user-section .user-table th:nth-child(1),
+.user-section .user-table td:nth-child(1) {
+  width: 50px;
+}
+
+.user-section .user-table th:nth-child(2),
+.user-section .user-table td:nth-child(2) {
+  width: 115px;
+}
+
+.user-section .user-table th:nth-child(3),
+.user-section .user-table td:nth-child(3) {
+  width: 180px;
+}
+
+.user-section .user-table th:nth-child(4),
+.user-section .user-table td:nth-child(4) {
+  width: 190px;
+}
+
+.user-section .user-table th:nth-child(5),
+.user-section .user-table td:nth-child(5) {
+  width: 100px;
+}
+
+.user-section .user-table th:nth-child(6),
+.user-section .user-table td:nth-child(6) {
+  width: 70px;
+}
+
+.user-section .user-table th:nth-child(7),
+.user-section .user-table td:nth-child(7) {
+  width: 55px;
+}
+
+.user-section .user-table th:nth-child(8),
+.user-section .user-table td:nth-child(8) {
+  width: 65px;
+}
+
+.user-section .user-table th:nth-child(9),
+.user-section .user-table td:nth-child(9) {
+  width: 125px;
+}
+
+.user-section .user-table th:nth-child(10),
+.user-section .user-table td:nth-child(10) {
+  width: 300px;
+}
+
+.user-section .user-table th:nth-child(11),
+.user-section .user-table td:nth-child(11) {
+  width: 145px;
+}
+
+.user-section .user-table th:nth-child(12),
+.user-section .user-table td:nth-child(12) {
+  width: 130px;
+}
+
+.user-section .user-table th:nth-child(13),
+.user-section .user-table td:nth-child(13) {
+  width: 125px;
 }
 
 .account-status {

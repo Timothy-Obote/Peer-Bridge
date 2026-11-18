@@ -595,18 +595,18 @@ app.get("/admin/overview", authenticateToken, requireAdmin, async (req, res) => 
             LIMIT 1
           ) tutee_profile ON TRUE
           LEFT JOIN LATERAL (
-            SELECT STRING_AGG(c.course_code || ' - ' || c.course_name, ', ' ORDER BY c.course_code) AS units
+            SELECT STRING_AGG(c.code || ' - ' || c.name, ', ' ORDER BY c.code) AS units
             FROM jsonb_array_elements_text(
               COALESCE(NULLIF(tutor_profile.selected_courses::text, '')::jsonb, '[]'::jsonb)
             ) AS selected(course_id)
-            JOIN courses_1 c ON c.id = selected.course_id::int
+            JOIN courses c ON c.id = selected.course_id::int
           ) tutor_units ON TRUE
           LEFT JOIN LATERAL (
-            SELECT STRING_AGG(c.course_code || ' - ' || c.course_name, ', ' ORDER BY c.course_code) AS units
+            SELECT STRING_AGG(c.code || ' - ' || c.name, ', ' ORDER BY c.code) AS units
             FROM jsonb_array_elements_text(
               COALESCE(NULLIF(tutee_profile.selected_courses::text, '')::jsonb, '[]'::jsonb)
             ) AS selected(course_id)
-            JOIN courses_1 c ON c.id = selected.course_id::int
+            JOIN courses c ON c.id = selected.course_id::int
           ) tutee_units ON TRUE
           ORDER BY COALESCE(tutor_profile.created_at, tutee_profile.created_at, u.created_at) DESC
         `);
