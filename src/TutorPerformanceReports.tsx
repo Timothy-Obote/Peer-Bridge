@@ -48,7 +48,6 @@ const TutorPerformanceReports = () => {
   const navigate = useNavigate();
   const [loading, setLoading] = useState(true);
   const [tutorName, setTutorName] = useState("Tutor");
-  const [sidebarOpen, setSidebarOpen] = useState(false);
   const [summaryStats] = useState<SummaryStats>({
     averageRating: 4.8,
     ratingGrowth: 0.3,
@@ -142,28 +141,6 @@ const TutorPerformanceReports = () => {
     setLoading(false);
   }, [navigate]);
 
-  useEffect(() => {
-    if (sidebarOpen) {
-      document.body.style.overflow = "hidden";
-    } else {
-      document.body.style.overflow = "";
-    }
-    return () => {
-      document.body.style.overflow = "";
-    };
-  }, [sidebarOpen]);
-
-  const handleNavigation = (path: string) => {
-    setSidebarOpen(false);
-    navigate(path);
-  };
-
-  const handleLogout = () => {
-    localStorage.removeItem("user");
-    localStorage.removeItem("token");
-    navigate("/");
-  };
-
   const renderStars = (rating: number): string => {
     const full = "★".repeat(rating);
     const empty = "☆".repeat(5 - rating);
@@ -173,36 +150,7 @@ const TutorPerformanceReports = () => {
   if (loading) {
     return (
       <div className="performance-reports-page">
-        <button
-          type="button"
-          className="hamburger"
-          onClick={() => setSidebarOpen((prev) => !prev)}
-          aria-label={sidebarOpen ? "Close menu" : "Open menu"}
-          aria-expanded={sidebarOpen}
-        >
-          <span className="hamburger-line" />
-          <span className="hamburger-line" />
-          <span className="hamburger-line" />
-        </button>
-        <aside className={`sidebar ${sidebarOpen ? "sidebar--open" : ""}`}>
-          <div className="sidebar-top">
-            <h2 className="logo">PeerBridge</h2>
-          </div>
-          <div className="sidebar-middle">
-            <p className="sidebar-heading">Tutor Panel</p>
-            <nav className="nav-links">
-              <a onClick={() => handleNavigation("/tutor")} className="nav-item">Register</a>
-              <a onClick={() => handleNavigation("/tutor/sessions")} className="nav-item">My Sessions</a>
-              <a onClick={() => handleNavigation("/tutor/performance")} className="nav-item nav-item--active">Performance Reports</a>
-              <a onClick={() => handleNavigation("/tutor/matches")} className="nav-item">View Matches</a>
-              <a onClick={() => handleNavigation("/tutor/profile")} className="nav-item">Profile</a>
-            </nav>
-          </div>
-          <div className="sidebar-bottom">
-            <button className="logout-btn" onClick={handleLogout}>Logout</button>
-          </div>
-        </aside>
-        <main className="main-content">
+        <main className="performance-reports-content">
           <div className="loading-spinner">Loading performance reports...</div>
         </main>
       </div>
@@ -215,44 +163,7 @@ const TutorPerformanceReports = () => {
 
   return (
     <div className="performance-reports-page">
-      <button
-        type="button"
-        className="hamburger"
-        onClick={() => setSidebarOpen((prev) => !prev)}
-        aria-label={sidebarOpen ? "Close menu" : "Open menu"}
-        aria-expanded={sidebarOpen}
-      >
-        <span className="hamburger-line" />
-        <span className="hamburger-line" />
-        <span className="hamburger-line" />
-      </button>
-
-      {sidebarOpen && (
-        <div className="sidebar-backdrop sidebar-backdrop--visible" onClick={() => setSidebarOpen(false)} />
-      )}
-
-      <aside className={`sidebar ${sidebarOpen ? "sidebar--open" : ""}`}>
-        <div className="sidebar-top">
-          <h2 className="logo">PeerBridge</h2>
-        </div>
-
-        <div className="sidebar-middle">
-          <p className="sidebar-heading">Tutor Panel</p>
-          <nav className="nav-links">
-            <a onClick={() => handleNavigation("/tutor")} className="nav-item">Register</a>
-            <a onClick={() => handleNavigation("/tutor/sessions")} className="nav-item">My Sessions</a>
-            <a onClick={() => handleNavigation("/tutor/performance")} className="nav-item nav-item--active">Performance Reports</a>
-            <a onClick={() => handleNavigation("/tutor/matches")} className="nav-item">View Matches</a>
-            <a onClick={() => handleNavigation("/tutor/profile")} className="nav-item">Profile</a>
-          </nav>
-        </div>
-
-        <div className="sidebar-bottom">
-          <button className="logout-btn" onClick={handleLogout}>Logout</button>
-        </div>
-      </aside>
-
-      <main className="main-content">
+      <main className="performance-reports-content">
         <section className="greeting-section">
           <h1 className="greeting-title">Hey {tutorName} <span aria-hidden="true">👋</span>, good to see you.</h1>
           <p className="greeting-date">

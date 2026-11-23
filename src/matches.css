@@ -4,9 +4,9 @@
   --matches-muted: #64748b;
   --matches-line: #e2e8f0;
   --matches-accent: #facc15;
-  width: min(100%, 1280px);
-  margin: 0 auto;
-  padding: 42px clamp(28px, 6vw, 88px) 24px;
+  width: 100%;
+  margin: 0;
+  padding: 0;
   color: #172033;
 }
 

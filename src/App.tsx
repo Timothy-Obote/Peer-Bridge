@@ -15,6 +15,7 @@ import TuteeSessions from "./TuteeSessions";
 import TuteeFeedback from "./TuteeFeedback";
 import TuteeMatches from "./TuteeMatches";
 import TuteeProfile from "./TuteeProfile";
+import DashboardLayout from "./DashboardLayout";
 import AdminDashboard from "./Admin";
 import AdminOverview from "./AdminOverview";
 import AdminUsers from "./AdminUsers";
@@ -351,93 +352,35 @@ export default function App() {
           <Route path="settings" element={<AdminSettings />} />
         </Route>
 
-        {/* Tutor Dashboard – no nested routes here, but sub-routes are separate */}
+        {/* Tutor dashboard pages share one persistent role-aware shell */}
         <Route
-          path="/tutor-dashboard"
           element={
             <ProtectedRoute allowedRoles={['tutor', 'admin']}>
-              <TutorDashboard />
+              <DashboardLayout role="tutor" />
             </ProtectedRoute>
           }
-        />
+        >
+          <Route path="/tutor-dashboard" element={<TutorDashboard />} />
+          <Route path="/tutor/sessions" element={<TutorSessions />} />
+          <Route path="/tutor/matches" element={<TutorMatches />} />
+          <Route path="/tutor/performance" element={<TutorPerformanceReports />} />
+          <Route path="/tutor/profile" element={<TutorProfile />} />
+        </Route>
 
-        {/* Tutee Dashboard – separate */}
+        {/* Tutee dashboard pages share the same shell and responsive behavior */}
         <Route
-          path="/tutee-dashboard"
           element={
             <ProtectedRoute allowedRoles={['tutee', 'admin']}>
-              <TuteeDashboard />
+              <DashboardLayout role="tutee" />
             </ProtectedRoute>
           }
-        />
-
-        {/* Tutor sub‑routes */}
-        <Route
-          path="/tutor/sessions"
-          element={
-            <ProtectedRoute allowedRoles={['tutor', 'admin']}>
-              <TutorSessions />
-            </ProtectedRoute>
-          }
-        />
-        <Route
-          path="/tutor/matches"
-          element={
-            <ProtectedRoute allowedRoles={['tutor', 'admin']}>
-              <TutorMatches />
-            </ProtectedRoute>
-          }
-        />
-        <Route
-          path="/tutor/performance"
-          element={
-            <ProtectedRoute allowedRoles={['tutor', 'admin']}>
-              <TutorPerformanceReports />
-            </ProtectedRoute>
-          }
-        />
-        <Route
-          path="/tutor/profile"
-          element={
-            <ProtectedRoute allowedRoles={['tutor', 'admin']}>
-              <TutorProfile />
-            </ProtectedRoute>
-          }
-        />
-
-        {/* Tutee sub‑routes */}
-        <Route
-          path="/tutee/sessions"
-          element={
-            <ProtectedRoute allowedRoles={['tutee', 'admin']}>
-              <TuteeSessions />
-            </ProtectedRoute>
-          }
-        />
-        <Route
-          path="/tutee/feedback"
-          element={
-            <ProtectedRoute allowedRoles={['tutee', 'admin']}>
-              <TuteeFeedback />
-            </ProtectedRoute>
-          }
-        />
-        <Route
-          path="/tutee/matches"
-          element={
-            <ProtectedRoute allowedRoles={['tutee', 'admin']}>
-              <TuteeMatches />
-            </ProtectedRoute>
-          }
-        />
-        <Route
-          path="/tutee/profile"
-          element={
-            <ProtectedRoute allowedRoles={['tutee', 'admin']}>
-              <TuteeProfile />
-            </ProtectedRoute>
-          }
-        />
+        >
+          <Route path="/tutee-dashboard" element={<TuteeDashboard />} />
+          <Route path="/tutee/sessions" element={<TuteeSessions />} />
+          <Route path="/tutee/feedback" element={<TuteeFeedback />} />
+          <Route path="/tutee/matches" element={<TuteeMatches />} />
+          <Route path="/tutee/profile" element={<TuteeProfile />} />
+        </Route>
         <Route
           path="/chat/:matchId"
           element={

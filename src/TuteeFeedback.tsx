@@ -65,7 +65,6 @@ const formatDate = (date: string) =>
 
 const TuteeFeedback = () => {
   const navigate = useNavigate();
-  const [sidebarOpen, setSidebarOpen] = useState(false);
   const [tuteeName, setTuteeName] = useState("Tutee");
 
   useEffect(() => {
@@ -77,17 +76,6 @@ const TuteeFeedback = () => {
     const user = JSON.parse(userStr);
     setTuteeName(user.name || "Tutee");
   }, [navigate]);
-
-  const handleNavigation = (path: string) => {
-    setSidebarOpen(false);
-    navigate(path);
-  };
-
-  const handleLogout = () => {
-    localStorage.removeItem("user");
-    localStorage.removeItem("token");
-    navigate("/");
-  };
 
   const renderFeedbackCards = (items: FeedbackItem[]) => (
     <div className="tutee-feedback-list">
@@ -110,39 +98,6 @@ const TuteeFeedback = () => {
 
   return (
     <div className="tutee-feedback-page">
-      <button
-        type="button"
-        className="tutee-feedback-menu"
-        onClick={() => setSidebarOpen((open) => !open)}
-        aria-label={sidebarOpen ? "Close menu" : "Open menu"}
-        aria-expanded={sidebarOpen}
-      >
-        <span />
-        <span />
-        <span />
-      </button>
-
-      {sidebarOpen && <div className="tutee-feedback-backdrop" onClick={() => setSidebarOpen(false)} />}
-
-      <aside className={`tutee-feedback-sidebar${sidebarOpen ? " is-open" : ""}`}>
-        <div>
-          <h2 className="tutee-feedback-brand">PeerBridge</h2>
-          <div className="tutee-feedback-divider" />
-          <p className="tutee-feedback-panel-label">TUTEE PANEL</p>
-          <nav className="tutee-feedback-nav" aria-label="Tutee navigation">
-            <a onClick={() => handleNavigation("/tutee")}>Register</a>
-            <a onClick={() => handleNavigation("/tutee/sessions")}>My Sessions</a>
-            <a className="is-active" onClick={() => handleNavigation("/tutee/feedback")}>Feedback</a>
-            <a onClick={() => handleNavigation("/tutee/matches")}>View Matches</a>
-            <a onClick={() => handleNavigation("/tutee/profile")}>Profile</a>
-          </nav>
-        </div>
-        <div className="tutee-feedback-logout-wrap">
-          <div className="tutee-feedback-divider" />
-          <button type="button" onClick={handleLogout}>Logout</button>
-        </div>
-      </aside>
-
       <main className="tutee-feedback-main">
         <header className="tutee-feedback-header">
           <p className="tutee-feedback-eyebrow">Feedback and growth</p>

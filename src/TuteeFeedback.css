@@ -7,10 +7,10 @@
   --feedback-background: #f6f8fb;
   --feedback-accent: #facc15;
   --feedback-positive: #15803d;
-  display: flex;
-  min-height: 100vh;
+  display: block;
+  min-height: 0;
   width: 100%;
-  background: var(--feedback-background);
+  background: transparent;
   color: var(--feedback-ink);
 }
 
@@ -80,12 +80,11 @@
 .tutee-feedback-main {
   display: flex;
   min-width: 0;
-  flex: 1;
   flex-direction: column;
   gap: 22px;
-  height: 100vh;
-  overflow-y: auto;
-  padding: 42px clamp(20px, 4vw, 56px) 24px;
+  height: auto;
+  overflow: visible;
+  padding: 0;
 }
 
 .tutee-feedback-header,
@@ -363,8 +362,8 @@
 
   .tutee-feedback-main {
     height: auto;
-    min-height: 100vh;
-    padding: 76px 16px 24px;
+    min-height: 0;
+    padding: 0;
   }
 
   .tutee-feedback-list {

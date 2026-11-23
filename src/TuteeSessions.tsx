@@ -151,7 +151,6 @@ const TuteeSessions = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [tuteeName, setTuteeName] = useState("Tutee");
-  const [sidebarOpen, setSidebarOpen] = useState(false);
   const [activeFilter, setActiveFilter] = useState<"all" | "upcoming" | "ongoing" | "completed">("all");
   const [apiData, setApiData] = useState<TuteeSessionsResponse | null>(null);
 
@@ -166,15 +165,6 @@ const TuteeSessions = () => {
     const user = JSON.parse(userStr);
     setTuteeName(user.name || "Tutee");
   }, [navigate, userStr, token]);
-
-  useEffect(() => {
-    if (sidebarOpen) {
-      document.body.style.overflow = "hidden";
-    } else {
-      document.body.style.overflow = "";
-    }
-    return () => { document.body.style.overflow = ""; };
-  }, [sidebarOpen]);
 
   useEffect(() => {
     const fetchData = async () => {
@@ -196,17 +186,6 @@ const TuteeSessions = () => {
     };
     fetchData();
   }, [userStr, token]);
-
-  const handleNavigation = (path: string) => {
-    setSidebarOpen(false);
-    navigate(path);
-  };
-
-  const handleLogout = () => {
-    localStorage.removeItem("user");
-    localStorage.removeItem("token");
-    navigate("/");
-  };
 
   // Augment API sessions with mock metadata (rating, feedback, scheduled time)
   const allSessions: SessionWithMeta[] = [];
@@ -268,63 +247,6 @@ const TuteeSessions = () => {
 
   return (
     <div className="my-sessions-page">
-      {/* —— Hamburger (mobile) —— */}
-      <button
-        type="button"
-        className="hamburger"
-        onClick={() => setSidebarOpen((prev) => !prev)}
-        aria-label={sidebarOpen ? "Close menu" : "Open menu"}
-        aria-expanded={sidebarOpen}
-      >
-        <span className="hamburger-line" />
-        <span className="hamburger-line" />
-        <span className="hamburger-line" />
-      </button>
-
-      {sidebarOpen && (
-        <div
-          className="sidebar-backdrop sidebar-backdrop--visible"
-          onClick={() => setSidebarOpen(false)}
-        />
-      )}
-
-      {/* —— Sidebar —— */}
-      <aside className={`my-sessions-sidebar ${sidebarOpen ? "my-sessions-sidebar--open" : ""}`}>
-        <div className="sidebar-top">
-          <h2 className="logo">PeerBridge</h2>
-          <div className="sidebar-middle">
-            <p className="sidebar-heading">TUTEE PANEL</p>
-            <nav className="nav-links">
-              <a onClick={() => handleNavigation("/tutee")} className="nav-item">
-                Register
-              </a>
-              <a
-                onClick={() => handleNavigation("/tutee/sessions")}
-                className="nav-item nav-item--active"
-              >
-                My Sessions
-              </a>
-              <a onClick={() => handleNavigation("/tutee/feedback")} className="nav-item">
-                Feedback
-              </a>
-              <a onClick={() => handleNavigation("/tutee/matches")} className="nav-item">
-                View Matches
-              </a>
-              <a onClick={() => handleNavigation("/tutee/profile")} className="nav-item">
-                Profile
-              </a>
-            </nav>
-          </div>
-        </div>
-
-        <div className="sidebar-bottom">
-          <button className="logout-btn" onClick={handleLogout}>
-            Logout
-          </button>
-        </div>
-      </aside>
-
-      {/* —— Main content —— */}
       <main className="my-sessions-main">
         {/* Greeting */}
         <section className="greeting-section">
