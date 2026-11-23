@@ -11,6 +11,7 @@ interface DashboardLayoutProps {
 const navigationByRole: Record<DashboardRole, { label: string; path: string }[]> = {
   tutor: [
     { label: "Dashboard", path: "/tutor-dashboard" },
+    { label: "Register", path: "/tutor" },
     { label: "My Sessions", path: "/tutor/sessions" },
     { label: "Performance Reports", path: "/tutor/performance" },
     { label: "View Matches", path: "/tutor/matches" },
@@ -18,6 +19,7 @@ const navigationByRole: Record<DashboardRole, { label: string; path: string }[]>
   ],
   tutee: [
     { label: "Dashboard", path: "/tutee-dashboard" },
+    { label: "Register", path: "/tutee" },
     { label: "My Sessions", path: "/tutee/sessions" },
     { label: "Feedback", path: "/tutee/feedback" },
     { label: "View Matches", path: "/tutee/matches" },
