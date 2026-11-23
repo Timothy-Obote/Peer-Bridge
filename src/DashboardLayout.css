@@ -33,6 +33,12 @@
   background: var(--dashboard-navy);
 }
 
+.peer-dashboard__sidebar > div:first-child {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+}
+
 .peer-dashboard__brand {
   padding: 0 8px 26px;
   color: var(--dashboard-gold);
@@ -52,6 +58,8 @@
 
 .peer-dashboard__navigation {
   display: grid;
+  flex: 1;
+  align-content: center;
   gap: 5px;
 }
 
